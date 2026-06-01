@@ -1,615 +1,1633 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>복지카 1호 승하차 카운터</title>
-  <style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-      background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
-      color: #0f172a;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>동작복지카 실시간 위치</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --pink: #e84393;
+    --pink-light: #ff6bb5;
+    --pink-bg: #fff0f7;
+    --dark: #1a1a2e;
+    --gray: #6b7280;
+    --white: #ffffff;
+    --shadow: 0 4px 24px rgba(232,67,147,0.15);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f5f7;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    background: var(--white);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    z-index: 1000;
+    flex-shrink: 0;
+  }
+  .header-logo {
+    width: 42px; height: 42px;
+    background: var(--pink);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .header-title h1 {
+    font-size: 17px; font-weight: 900; color: var(--dark);
+    letter-spacing: -0.5px;
+  }
+  .header-title p {
+    font-size: 11px; color: var(--gray); margin-top: 1px;
+  }
+  .header-time {
+    margin-left: auto;
+    text-align: right;
+  }
+  .header-time .time {
+    font-size: 22px; font-weight: 900; color: var(--pink);
+    letter-spacing: -1px;
+    font-variant-numeric: tabular-nums;
+  }
+  .header-time .date {
+    font-size: 11px; color: var(--gray);
+  }
+  .tab-bar {
+    background: var(--white);
+    display: flex;
+    border-bottom: 2px solid #f0f0f0;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 1; min-width: 80px;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 13px; font-weight: 700;
+    color: var(--gray);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab.active {
+    color: var(--pink);
+    border-bottom-color: var(--pink);
+  }
+  .tab .badge {
+    display: inline-block;
+    background: var(--pink);
+    color: white;
+    border-radius: 10px;
+    font-size: 10px;
+    padding: 1px 6px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .tab.inactive-tab .badge {
+    background: #ccc;
+  }
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+  #map {
+    flex: 1;
+    z-index: 1;
+  }
+  .side-panel {
+    width: 300px;
+    background: var(--white);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+    z-index: 10;
+  }
+  .panel-header {
+    padding: 16px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .panel-header h2 {
+    font-size: 15px; font-weight: 900; color: var(--dark);
+  }
+  .panel-header p {
+    font-size: 11px; color: var(--gray); margin-top: 2px;
+  }
+  .bus-status {
+    padding: 12px 16px;
+    background: var(--pink-bg);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #fce4f0;
+  }
+  .bus-icon-big {
+    font-size: 28px;
+  }
+  .bus-info-text {
+    flex: 1;
+  }
+  .bus-info-text .bus-name {
+    font-size: 14px; font-weight: 900; color: var(--pink);
+  }
+  .bus-info-text .bus-pos {
+    font-size: 12px; color: var(--dark); margin-top: 2px;
+  }
+  .bus-info-text .bus-next {
+    font-size: 11px; color: var(--gray);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+  .stops-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .stops-list::-webkit-scrollbar { width: 4px; }
+  .stops-list::-webkit-scrollbar-track { background: #f5f5f5; }
+  .stops-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+  .stop-item {
+    display: flex;
+    align-items: center;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 0;
+    position: relative;
+    border-bottom: 1px solid #f5f5f7;
+  }
+  .stop-item.passed { opacity: 0.45; }
+  .stop-item.current {
+    background: linear-gradient(135deg, #fff0f7, #ffe0f0);
+    border-left: 3px solid var(--pink);
+  }
+  .stop-seq {
+    font-size: 10px;
+    font-weight: 700;
+    background: #f3f4f6;
+    color: var(--gray);
+    border-radius: 5px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+    margin-right: 10px;
+    min-width: 24px;
+    text-align: center;
+  }
+  .stop-seq.current-seq {
+    background: var(--pink);
+    color: white;
+  }
+  .stop-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .stop-name {
+    font-size: 13px; font-weight: 700; color: var(--dark);
+    line-height: 1.3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .stop-name.current-name { color: var(--pink); }
+  .stop-time {
+    font-size: 11px; color: var(--gray); margin-top: 1px;
+  }
+  .stop-tag {
+    font-size: 10px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 4px;
+    padding: 1px 4px;
+    margin-right: 4px;
+    vertical-align: middle;
+    flex-shrink: 0;
+  }
+  .bus-label {
+    font-size: 13px;
+    margin-left: 5px;
+    vertical-align: middle;
+  }
+  .stop-modal {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: white;
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.15);
+    z-index: 2000;
+    max-height: 60vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal-handle {
+    width: 40px; height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .modal-title {
+    font-size: 18px; font-weight: 900; color: var(--dark);
+  }
+  .modal-subtitle {
+    font-size: 12px; color: var(--gray); margin-top: 2px;
+  }
+  .modal-close {
+    width: 28px; height: 28px;
+    background: #f3f4f6;
+    border: none; border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .modal-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .time-chip {
+    background: var(--pink-bg);
+    color: var(--pink);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 12px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .time-chip.active-time {
+    background: var(--pink);
+    color: white;
+  }
+  .time-chip.next-time {
+    background: white;
+    color: var(--pink);
+    outline: 1.5px solid var(--pink);
+  }
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 1999;
+  }
+  .info-bar {
+    background: var(--dark);
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    padding: 6px 16px;
+    display: flex;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .info-bar span { display: flex; align-items: center; gap: 4px; }
+  .bus-marker {
+    background: var(--pink);
+    border: 3px solid white;
+    border-radius: 50%;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 3px 12px rgba(232,67,147,0.5);
+    animation: bounce 1s infinite alternate;
+  }
+  @keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-4px); }
+  }
+  .stop-marker {
+    background: white;
+    border: 2px solid var(--pink);
+    border-radius: 50%;
+    width: 14px; height: 14px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    cursor: pointer;
+  }
+  .stop-marker-inner {
+    width: 6px; height: 6px;
+    background: var(--pink);
+    border-radius: 50%;
+  }
+  .stop-label-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+  }
+  .stop-label-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid var(--pink, #e84393);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+    flex-shrink: 0;
+  }
+  .stop-label-dot.current {
+    background: #e84393;
+    border-color: #e84393;
+    width: 13px; height: 13px;
+    box-shadow: 0 0 0 3px rgba(232,67,147,0.25);
+  }
+  .stop-label-text {
+    margin-top: 3px;
+    background: white;
+    border: 1.5px solid #e84393;
+    border-radius: 5px;
+    padding: 2px 5px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: #1a1a2e;
+    line-height: 1.25;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 82px;
+    word-break: keep-all;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.13);
+    pointer-events: none;
+  }
+  .stop-label-text.current {
+    background: #e84393;
+    color: white;
+    border-color: #e84393;
+  }
+  .stop-label-text.start {
+    border-color: #3b82f6;
+    color: #3b82f6;
+  }
+  .stop-label-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+  }
+  .map-popup {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 210px;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: 0 8px 28px rgba(232,67,147,0.18), 0 2px 8px rgba(0,0,0,0.10);
+    border: 1.5px solid #fce4f0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .map-popup::after {
+    content: '';
+    position: absolute;
+    bottom: -11px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 11px solid transparent;
+    border-bottom: none;
+    border-top-color: #fff;
+    filter: drop-shadow(0 2px 2px rgba(232,67,147,0.10));
+  }
+  .map-popup::before {
+    content: '';
+    position: absolute;
+    bottom: -13px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 13px solid transparent;
+    border-bottom: none;
+    border-top-color: #fce4f0;
+    z-index: -1;
+  }
+  .stop-label-wrap:hover .map-popup { display: block; }
+  .mp-body { padding: 8px 10px 10px; }
+  .mp-name {
+    font-size: 12px; font-weight: 900; color: #1a1a2e;
+    margin-bottom: 7px;
+    line-height: 1.4;
+    border-bottom: 1px solid #fce4f0;
+    padding-bottom: 6px;
+  }
+  .mp-times { display: flex; flex-direction: column; gap: 3px; }
+  .mp-row { display: flex; gap: 3px; }
+  .mp-chip {
+    flex: 1;
+    background: #f5f5f7;
+    color: #555;
+    border-radius: 5px;
+    font-size: 10px; font-weight: 700;
+    text-align: center;
+    padding: 3px 0;
+    font-variant-numeric: tabular-nums;
+    transition: background 0.15s;
+  }
+  .mp-chip.active {
+    background: var(--pink);
+    color: #fff;
+  }
+  .mp-chip.next {
+    background: white;
+    color: var(--pink);
+    border: 1.5px solid var(--pink);
+    font-weight: 900;
+  }
+  .mp-chip.past {
+    display: none;
+  }
+  .mp-chip-empty {
+    flex: 1;
+  }
+  .no-service {
+    display: none;
+    background: #fff3cd;
+    border-left: 4px solid #f59e0b;
+    padding: 10px 16px;
+    font-size: 12px; color: #92400e;
+    flex-shrink: 0;
+  }
+  @media (max-width: 640px) {
+    .side-panel {
+      display: none;
     }
-    .app {
-      max-width: 430px;
-      margin: 0 auto;
-      min-height: 100vh;
-      padding: 18px 14px 28px;
+    .mobile-panel {
+      display: block !important;
     }
-    .hero {
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 55%, #1e40af 100%);
-      color: white;
-      border-radius: 28px;
-      padding: 20px 18px 18px;
-      box-shadow: 0 18px 40px rgba(37, 99, 235, 0.25);
-    }
-    .hero-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-    .bus-wrap {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .bus-icon {
-      font-size: 32px;
-      line-height: 1;
-    }
-    .bus-name {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-    .badge {
-      background: rgba(255,255,255,0.18);
-      border: 1px solid rgba(255,255,255,0.22);
-      color: rgba(255,255,255,0.96);
-      padding: 8px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-    .stop-order {
-      opacity: 0.9;
-      font-size: 13px;
-      margin-bottom: 8px;
-      font-weight: 700;
-    }
-    .stop-name {
-      font-size: 30px;
-      line-height: 1.2;
-      font-weight: 900;
-      letter-spacing: -0.03em;
-      word-break: keep-all;
-      min-height: 72px;
-    }
-    .nav-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 16px;
-    }
-    .nav-btn {
-      border: none;
-      border-radius: 18px;
-      padding: 14px 12px;
-      font-size: 16px;
-      font-weight: 800;
-      cursor: pointer;
-      background: rgba(255,255,255,0.14);
-      color: white;
-      border: 1px solid rgba(255,255,255,0.16);
-      backdrop-filter: blur(6px);
-    }
+  }
 
-    .section {
-      background: white;
-      border-radius: 24px;
-      padding: 16px;
-      margin-top: 14px;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-      border: 1px solid #e2e8f0;
-    }
-    .section-title {
-      font-size: 14px;
-      color: #475569;
-      font-weight: 800;
-      margin-bottom: 12px;
-    }
 
-    .ride-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .ride-btn {
-      border: none;
-      border-radius: 22px;
-      min-height: 110px;
-      font-size: 30px;
-      font-weight: 900;
-      letter-spacing: -0.03em;
-      cursor: pointer;
-      color: white;
-      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.18);
-    }
-    .board {
-      background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-    }
-    .alight {
-      background: linear-gradient(180deg, #0f172a 0%, #334155 100%);
-    }
+/* === Second UI style override: infographic split layout === */
+body{background:#fff;}
+header{display:none;}
+.main{height:calc(100vh - 42px);}
+#map{flex:0 0 46%; min-width:360px; filter:saturate(.92) contrast(.97);}
+.side-panel{width:54%; min-width:430px; box-shadow:-1px 0 0 #e5e7eb; background:rgba(255,255,255,.96);}
+.tab-bar{order:0; height:54px; border-bottom:1px solid #ddd; box-shadow:0 3px 16px rgba(0,0,0,.06); z-index:1001;}
+.tab{font-size:24px; font-weight:900; padding:10px 12px; border-right:1px solid #ddd; border-bottom-width:3px; letter-spacing:-1px;}
+.tab .badge{font-size:12px; padding:4px 9px; border-radius:999px; color:#fff; margin-left:5px; vertical-align:middle;}
+.tab:nth-child(1){color:#e84393}.tab:nth-child(2){color:#f97335}.tab:nth-child(3){color:#00a85a}.tab:nth-child(4){color:#7b6fbd}
+.tab.active{background:#fff; color:var(--pink); border-bottom-color:var(--pink);}
+.panel-header{padding:26px 26px 14px; border-bottom:0;}
+.panel-header h2{font-size:28px; letter-spacing:-1.4px; display:flex; align-items:center; gap:10px;}
+.panel-header h2::before{content:''; display:inline-block; width:22px; height:22px; border:9px solid var(--pink); border-radius:50%; box-sizing:border-box;}
+.panel-header p{font-size:13px; margin-left:42px;}
+.bus-status{margin:0 26px 16px; padding:14px 16px; border-radius:18px; border:1px solid rgba(0,0,0,.06); background:linear-gradient(135deg, var(--pink-bg), #fff); box-shadow:0 12px 30px rgba(0,0,0,.06);}
+.bus-icon-big{width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:15px; background:var(--pink); color:#fff; font-size:24px; box-shadow:0 6px 18px var(--pink-bg);}
+.bus-info-text .bus-name{font-size:18px; color:var(--pink);}
+.bus-info-text .bus-pos{font-size:13px;}
+.bus-info-text .bus-next{font-size:12px;}
+.route-legend{display:flex; gap:18px; align-items:center; padding:0 26px 18px; font-size:12px; font-weight:800; color:#4b5563;}
+.legend-dot{display:inline-block; width:18px; height:18px; border-radius:5px; margin-right:6px; vertical-align:middle;}
+.legend-current{background:var(--pink); box-shadow:0 6px 14px var(--pink-bg);}
+.legend-next{background:#fff; border:2px solid var(--pink); box-sizing:border-box;}
+.stops-list{padding:0 34px 18px; display:flex; flex-direction:column; gap:38px; overflow:auto;}
+.flow-row{--gap:20px; --count:5; position:relative; display:grid; grid-template-columns:repeat(5, minmax(76px,1fr)); gap:var(--gap); isolation:isolate;}
+.flow-row::before{content:''; position:absolute; z-index:0; left:0; top:50%; height:12px; width:calc(((100% - (var(--gap) * 4)) / 5) * var(--count) + var(--gap) * (var(--count) - 1)); transform:translateY(-50%); background:var(--pink); border-radius:999px; pointer-events:none;}
+.flow-cell{position:relative; z-index:1;}
+.flow-cell:not(:last-child)::after{content:''; position:absolute; z-index:2; top:50%; right:calc(var(--gap) / -2 - 5px); transform:translateY(-50%); width:0; height:0; border-top:8px solid transparent; border-bottom:8px solid transparent; border-left:12px solid #fff; filter:drop-shadow(0 0 0 rgba(0,0,0,0)); pointer-events:none;}
+.flow-row.reverse .flow-cell:not(:last-child)::after{right:auto; left:calc(var(--gap) / -2 - 5px); border-left:0; border-right:12px solid #fff;}
+.flow-row.count-1::before{display:none;}
+.flow-row.normal:not(:last-child)::after{content:''; position:absolute; z-index:0; right:-24px; top:50%; width:38px; height:calc(100% + 38px); border-top:12px solid var(--pink); border-right:12px solid var(--pink); border-bottom:12px solid var(--pink); border-left:0; border-radius:0 24px 24px 0; pointer-events:none; box-sizing:border-box;}
+.flow-row.reverse:not(:last-child)::after{content:''; position:absolute; z-index:0; left:-24px; top:50%; width:38px; height:calc(100% + 38px); border-top:12px solid var(--pink); border-left:12px solid var(--pink); border-bottom:12px solid var(--pink); border-right:0; border-radius:24px 0 0 24px; pointer-events:none; box-sizing:border-box;}
+.flow-row.normal:not(:last-child) .flow-cell:last-child::before{content:''; position:absolute; z-index:2; right:-29px; top:calc(100% + 18px); width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-top:12px solid #fff; pointer-events:none;}
+.flow-row.reverse:not(:last-child) .flow-cell:first-child::before{content:''; position:absolute; z-index:2; left:-29px; top:calc(100% + 18px); width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-top:12px solid #fff; pointer-events:none;}
 
-    .flag-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-    .flag-btn {
-      border: 1.5px solid #cbd5e1;
-      background: #fff;
-      color: #1e3a8a;
-      min-height: 64px;
-      border-radius: 18px;
-      font-size: 18px;
-      font-weight: 800;
-      cursor: pointer;
-    }
+.stop-item{display:block; min-height:92px; padding:0; border:1.5px solid #e5e7eb; border-radius:12px; background:#fff; overflow:hidden; text-align:center; box-shadow:0 3px 10px rgba(0,0,0,.04);}
+.stop-item.current{background:#fff; border:2px solid var(--pink); border-left:2px solid var(--pink); box-shadow:0 8px 22px var(--pink-bg);}
+.stop-item.passed{opacity:.42;}
+.stop-seq{display:none;}
+.stop-content{height:100%; display:flex; flex-direction:column;}
+.stop-name{font-size:13px; font-weight:900; padding:12px 8px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:keep-all; line-height:1.25; flex:1; display:block;}
+.stop-name.current-name{color:var(--pink);}
+.stop-time{background:#f6f7f9; color:#111827; font-size:12px; padding:7px 4px; margin-top:0; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.stop-item.current .stop-time{background:var(--pink); color:#fff;}
+.stop-tag{background:var(--pink); font-size:10px; margin-right:2px;}
+.bus-label{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; margin-left:4px; border-radius:999px; background:var(--pink); color:#fff; font-size:11px; padding:0 5px;}
+.info-bar{background:#fff; color:#444; border-top:1px solid #eee; font-size:12px; padding:10px 22px; justify-content:center; flex-wrap:wrap;}
+.no-service{position:absolute; top:54px; left:46%; right:0; z-index:20;}
+.leaflet-control-zoom{box-shadow:0 8px 20px rgba(0,0,0,.1)!important; border:0!important;}
+.bus-marker{position:relative; width:40px; height:40px; border-radius:50%; border:3px solid #fff; background:var(--pink); box-shadow:0 6px 18px var(--pink-bg), 0 2px 8px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center; font-size:20px;}
+.bus-ab{position:absolute; top:-25px; left:50%; transform:translateX(-50%); width:28px; height:28px; border-radius:50%; background:#fff; border:2px solid var(--pink); color:var(--pink); font-size:16px; font-weight:900; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.15);}
+.bus-emoji{line-height:1;}
+.stop-label-dot.current{background:var(--pink)!important; border-color:var(--pink)!important; box-shadow:0 0 0 4px var(--pink-bg)!important;}
+.stop-label-text.current{background:var(--pink)!important; border-color:var(--pink)!important; color:#fff!important;}
+.stop-label-text{border-color:var(--pink)!important;}
+.map-popup{border-color:var(--pink-bg)!important; box-shadow:0 10px 28px var(--pink-bg), 0 2px 8px rgba(0,0,0,.10)!important;}
+.mp-chip.active{background:var(--pink)!important; color:#fff!important;}
+.mp-chip.next{border-color:var(--pink)!important; color:var(--pink)!important;}
+.time-chip.active-time{background:var(--pink)!important; color:#fff!important;}
+.time-chip.next-time{border-color:var(--pink)!important; color:var(--pink)!important;}
+@media (max-width: 900px){
+  .main{flex-direction:column; height:calc(100vh - 96px);} #map{flex:1 1 48%; min-width:0;} .side-panel{display:flex!important; width:100%; min-width:0; max-height:52%;} .tab{font-size:18px}.panel-header{padding:14px 16px 8px}.panel-header h2{font-size:20px}.bus-status{margin:0 16px 10px}.route-legend{padding:0 16px 10px}.stops-list{padding:0 16px 14px; gap:24px}.flow-row{grid-template-columns:repeat(3,1fr); gap:18px}.flow-cell::after{right:-16px}.flow-row.reverse .flow-cell::after{left:-16px}.flow-row:not(:last-child)::after{font-size:34px}.flow-row.normal:not(:last-child)::after{right:-18px}.flow-row.reverse:not(:last-child)::after{left:-18px}.stop-item{min-height:78px}.no-service{left:0; top:54px}.info-bar{display:none;}
+}
+@media (max-width: 640px){.side-panel{display:flex!important}.tab{min-width:92px}.stops-list{grid-template-columns:repeat(2,1fr)}.stop-name{font-size:12px}.stop-time{font-size:11px}}
 
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-    .stat-card {
-      background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
-      border: 1px solid #dbeafe;
-      border-radius: 18px;
-      padding: 14px 10px;
-      text-align: center;
-    }
-    .stat-label {
-      font-size: 12px;
-      color: #64748b;
-      font-weight: 800;
-      margin-bottom: 6px;
-    }
-    .stat-value {
-      font-size: 26px;
-      font-weight: 900;
-      color: #0f172a;
-      letter-spacing: -0.03em;
-    }
+.map-legend{position:absolute;left:18px;top:18px;z-index:500;background:#fff;border-radius:12px;padding:10px 16px;font-weight:900;box-shadow:0 8px 24px rgba(0,0,0,.12);color:#111827}.map-legend:before{content:"";display:inline-block;width:28px;height:6px;border-radius:99px;background:var(--pink);margin-right:8px;vertical-align:middle}
 
-    .substats-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-    .substat-card {
-      background: #ffffff;
-      border: 1px dashed #bfd4ff;
-      border-radius: 18px;
-      padding: 14px 10px;
-      text-align: center;
-    }
-    .substat-label {
-      font-size: 12px;
-      color: #1d4ed8;
-      font-weight: 800;
-      margin-bottom: 6px;
-    }
-    .substat-value {
-      font-size: 22px;
-      font-weight: 900;
-      color: #1e3a8a;
-    }
+/* === Requested: top timetable + active trip flow === */
+.bus-status{display:none!important;}
+.schedule-section{margin:0 26px 12px; padding-bottom:14px; border-bottom:1px solid #e5e7eb;}
+.schedule-title{display:flex; align-items:center; gap:10px; font-size:26px; font-weight:1000; color:#111827; letter-spacing:-1px; margin-bottom:14px;}
+.schedule-title::before{content:''; width:22px; height:22px; border:8px solid var(--pink); border-radius:50%; box-sizing:border-box; flex:0 0 auto;}
+.schedule-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 14px;}
+.schedule-chip{height:42px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:#f6f7f9; border:1px solid #edf0f4; color:#111827; font-size:19px; font-weight:800; font-variant-numeric:tabular-nums;}
+.schedule-chip.current{background:var(--pink); color:#fff; border-color:var(--pink); box-shadow:0 8px 20px var(--pink-bg);}
+.schedule-chip.next{background:#fff; color:var(--pink); border:1.8px solid var(--pink);}
+.route-legend{padding:0 26px 16px!important;}
+.stop-time{font-size:13px; color:#111827;}
+.stop-item.current .stop-time{background:var(--pink); color:#fff;}
+.stop-item.trip-next{border-color:var(--pink);}
+.stop-item.trip-next .stop-time{background:#fff; color:var(--pink); border-top:1px solid var(--pink-bg);}
+.stop-item.passed{opacity:1;}
+@media (max-width:900px){.schedule-section{margin:0 16px 10px}.schedule-title{font-size:20px}.schedule-chip{height:34px;font-size:15px}.route-legend{padding:0 16px 10px!important}}
 
-    .toolbar {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .tool-btn {
-      border: 1px solid #cbd5e1;
-      background: #fff;
-      color: #0f172a;
-      border-radius: 16px;
-      padding: 13px 10px;
-      font-size: 14px;
-      font-weight: 800;
-      cursor: pointer;
-    }
 
-    .history-wrap {
-      max-height: 280px;
-      overflow: auto;
-      border: 1px solid #e2e8f0;
-      border-radius: 18px;
-      background: #fff;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      font-size: 13px;
-      padding: 10px 12px;
-      border-bottom: 1px solid #eef2f7;
-      text-align: left;
-      white-space: nowrap;
-    }
-    th {
-      position: sticky;
-      top: 0;
-      background: #f8fafc;
-      color: #334155;
-      font-weight: 800;
-      z-index: 1;
-    }
-    .empty {
-      padding: 26px 12px;
-      text-align: center;
-      color: #94a3b8;
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .note {
-      margin-top: 12px;
-      font-size: 12px;
-      color: #64748b;
-      line-height: 1.5;
-      text-align: center;
-    }
+/* === Compact timetable patch === */
+.schedule-section{margin:0 18px 8px!important; padding-bottom:9px!important;}
+.schedule-title{font-size:18px!important; gap:7px!important; margin-bottom:8px!important;}
+.schedule-title::before{display:none!important; content:none!important;}
+.schedule-grid{gap:6px 8px!important;}
+.schedule-chip{height:28px!important; border-radius:6px!important; font-size:14px!important; font-weight:800!important;}
+.route-legend{padding:0 18px 10px!important; gap:14px!important; font-size:11px!important;}
+.legend-dot{width:14px!important; height:14px!important; border-radius:4px!important; margin-right:4px!important;}
+.stops-list{padding-left:34px!important; padding-right:34px!important;}
+@media (max-width:900px){
+  .schedule-section{margin:0 14px 7px!important;}
+  .schedule-title{font-size:16px!important;}
+  .schedule-chip{height:26px!important; font-size:13px!important;}
+  .route-legend{padding:0 14px 8px!important;}
+}
 
-    button:active { transform: scale(0.985); }
 
-    @media (max-width: 380px) {
-      .stop-name { font-size: 26px; }
-      .ride-btn { min-height: 96px; font-size: 26px; }
-      .flag-btn { font-size: 16px; }
-    }
-  </style>
+/* requested-only final fixes */
+.stop-label-prefix{font-weight:900; color:inherit; margin-right:3px;}
+.stop-name{font-size:12px!important; padding-left:5px!important; padding-right:5px!important;}
+.stop-item.current .stop-label-prefix{color:var(--pink);}
+.stop-item.current .stop-time{background:var(--pink); color:#fff;}
+
+/* thick route line layout refinement */
+@media (max-width:900px){
+  .stops-list{gap:30px!important;}
+  .flow-row{--gap:16px!important;}
+  .flow-row::before{height:10px;}
+  .flow-cell:not(:last-child)::after{right:calc(var(--gap) / -2 - 5px); border-top-width:7px; border-bottom-width:7px; border-left-width:10px;}
+  .flow-row.reverse .flow-cell:not(:last-child)::after{left:calc(var(--gap) / -2 - 5px); border-right-width:10px;}
+  .flow-row.normal:not(:last-child)::after{right:-18px; border-top-width:10px; border-right-width:10px; border-bottom-width:10px;}
+  .flow-row.reverse:not(:last-child)::after{left:-18px; border-top-width:10px; border-left-width:10px; border-bottom-width:10px;}
+}
+
+
+/* requested-only fix: smaller inner arrows + centered route line */
+.flow-row::before{
+  top:50% !important;
+  transform:translateY(-50%) !important;
+}
+.flow-cell:not(:last-child)::after{
+  top:50% !important;
+  transform:translateY(-50%) !important;
+  border-top-width:4px !important;
+  border-bottom-width:4px !important;
+  border-left-width:6px !important;
+  right:calc(var(--gap) / -2 - 3px) !important;
+}
+.flow-row.reverse .flow-cell:not(:last-child)::after{
+  border-left-width:0 !important;
+  border-right-width:6px !important;
+  left:calc(var(--gap) / -2 - 3px) !important;
+  right:auto !important;
+}
+.flow-row.normal:not(:last-child)::after,
+.flow-row.reverse:not(:last-child)::after{
+  top:50% !important;
+}
+.flow-row.normal:not(:last-child) .flow-cell:last-child::before,
+.flow-row.reverse:not(:last-child) .flow-cell:first-child::before{
+  border-left-width:4px !important;
+  border-right-width:4px !important;
+  border-top-width:6px !important;
+}
+
+
+
+/* fix only: center white arrows on vertical route connectors */
+.flow-row.normal:not(:last-child) .flow-cell:last-child::before{
+  right:-12px !important;
+  top:calc(100% + 18px) !important;
+  border-left-width:4px !important;
+  border-right-width:4px !important;
+  border-top-width:6px !important;
+}
+.flow-row.reverse:not(:last-child) .flow-cell:first-child::before{
+  left:-12px !important;
+  top:calc(100% + 18px) !important;
+  border-left-width:4px !important;
+  border-right-width:4px !important;
+  border-top-width:6px !important;
+}
+@media (max-width:900px){
+  .flow-row.normal:not(:last-child) .flow-cell:last-child::before{right:-11px !important;}
+  .flow-row.reverse:not(:last-child) .flow-cell:first-child::before{left:-11px !important;}
+}
+
+
+/* final fix: center vertical connector arrows on the thick path */
+.flow-row.normal:not(:last-child) .flow-cell:last-child::before{
+  right:-8px !important;
+  top:calc(100% + 16px) !important;
+}
+.flow-row.reverse:not(:last-child) .flow-cell:first-child::before{
+  left:-8px !important;
+  top:calc(100% + 16px) !important;
+}
+@media (max-width:900px){
+  .flow-row.normal:not(:last-child) .flow-cell:last-child::before{right:-8px !important;}
+  .flow-row.reverse:not(:last-child) .flow-cell:first-child::before{left:-8px !important;}
+}
+.stop-time .trip-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 5px; margin-left:6px;
+  border-radius:999px; background:var(--pink); color:#fff;
+  font-size:10px; font-weight:900; vertical-align:middle;
+}
+
+
+
+/* === UI update: route area 2/3, timetable area 1/3 + time band aligned at bottom === */
+.side-panel{
+  display:flex !important;
+  flex-direction:column !important;
+}
+.panel-header{flex:0 0 auto;}
+.route-legend{flex:0 0 auto;}
+.stops-list{
+  flex:2 1 0 !important;
+  min-height:0 !important;
+  overflow:auto !important;
+  padding-bottom:20px !important;
+}
+.schedule-section{
+  flex:1 1 0 !important;
+  min-height:0 !important;
+  overflow:auto !important;
+  margin-top:0 !important;
+}
+.stop-item{
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:stretch !important;
+}
+.stop-content{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+}
+.stop-name{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+}
+.stop-time{
+  margin-top:auto !important;
+  width:100% !important;
+  min-height:30px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  line-height:1 !important;
+}
+.stop-item.current .stop-time{
+  min-height:30px !important;
+}
+.flow-row::before{
+  top:calc(100% - 30px) !important;
+  transform:translateY(-50%) !important;
+}
+.flow-cell:not(:last-child)::after{
+  top:calc(100% - 30px) !important;
+  transform:translateY(-50%) !important;
+}
+.flow-row.normal:not(:last-child)::after,
+.flow-row.reverse:not(:last-child)::after{
+  top:calc(100% - 30px) !important;
+}
+.flow-row.normal:not(:last-child) .flow-cell:last-child::before,
+.flow-row.reverse:not(:last-child) .flow-cell:first-child::before{
+  top:calc(100% + 28px) !important;
+}
+@media (max-width:900px){
+  .stops-list{flex:2 1 0 !important;}
+  .schedule-section{flex:1 1 0 !important;}
+  .stop-time{min-height:28px !important;}
+  .flow-row::before,
+  .flow-cell:not(:last-child)::after{top:calc(100% - 28px) !important;}
+}
+
+
+
+/* === FINAL PATCH: active state sync + route arrow alignment only === */
+:root{--route-line-y: calc(100% - 15px);}
+.stops-list{gap:38px !important; overflow-x:hidden !important;}
+.flow-row{overflow:visible !important; align-items:stretch !important;}
+.flow-cell{overflow:visible !important;}
+.flow-row::before{
+  top:var(--route-line-y) !important;
+  height:10px !important;
+  transform:translateY(-50%) !important;
+  z-index:0 !important;
+}
+.flow-cell:not(:last-child)::after{
+  top:var(--route-line-y) !important;
+  transform:translateY(-50%) !important;
+  z-index:6 !important;
+  border-top-width:4px !important;
+  border-bottom-width:4px !important;
+  border-left-width:6px !important;
+  right:calc(var(--gap) / -2 - 3px) !important;
+}
+.flow-row.reverse .flow-cell:not(:last-child)::after{
+  top:var(--route-line-y) !important;
+  left:calc(var(--gap) / -2 - 3px) !important;
+  right:auto !important;
+  border-left-width:0 !important;
+  border-right-width:6px !important;
+}
+.flow-row.normal:not(:last-child)::after{
+  top:var(--route-line-y) !important;
+  right:-22px !important;
+  height:calc(100% + var(--gap)) !important;
+  border-top-width:10px !important;
+  border-right-width:10px !important;
+  border-bottom-width:10px !important;
+  border-radius:0 22px 22px 0 !important;
+  z-index:0 !important;
+}
+.flow-row.reverse:not(:last-child)::after{
+  top:var(--route-line-y) !important;
+  left:-22px !important;
+  height:calc(100% + var(--gap)) !important;
+  border-top-width:10px !important;
+  border-left-width:10px !important;
+  border-bottom-width:10px !important;
+  border-radius:22px 0 0 22px !important;
+  z-index:0 !important;
+}
+.flow-row.normal:not(:last-child) .flow-cell:last-child::before{
+  right:-12px !important;
+  top:calc(var(--route-line-y) + ((100% + var(--gap)) / 2) - 3px) !important;
+  border-left-width:4px !important;
+  border-right-width:4px !important;
+  border-top-width:6px !important;
+  z-index:7 !important;
+}
+.flow-row.reverse:not(:last-child) .flow-cell:first-child::before{
+  left:-12px !important;
+  top:calc(var(--route-line-y) + ((100% + var(--gap)) / 2) - 3px) !important;
+  border-left-width:4px !important;
+  border-right-width:4px !important;
+  border-top-width:6px !important;
+  z-index:7 !important;
+}
+.stop-time{min-height:30px !important; padding:0 4px !important;}
+.stop-item.current .trip-badge{background:#fff !important; color:var(--pink) !important;}
+.stop-item.trip-next .trip-badge{background:var(--pink) !important; color:#fff !important;}
+@media (max-width:900px){
+  :root{--route-line-y: calc(100% - 14px);}
+  .stops-list{gap:32px !important;}
+  .flow-row{--gap:16px !important;}
+  .flow-row.normal:not(:last-child)::after{right:-18px !important;}
+  .flow-row.reverse:not(:last-child)::after{left:-18px !important;}
+  .flow-row.normal:not(:last-child) .flow-cell:last-child::before{right:-10px !important;}
+  .flow-row.reverse:not(:last-child) .flow-cell:first-child::before{left:-10px !important;}
+}
+
+
+
+/* === Requested 4-item patch only === */
+/* 1) full screen map:right panel = 5:5 */
+#map{flex:0 0 50% !important; min-width:0 !important;}
+.side-panel{width:50% !important; min-width:0 !important;}
+.no-service{left:50% !important;}
+
+/* 2) unify stop-card time gray band */
+.stop-item{height:92px !important;}
+.stop-content{height:100% !important;}
+.stop-name{height:62px !important; flex:0 0 62px !important; box-sizing:border-box !important;}
+.stop-time{height:30px !important; min-height:30px !important; flex:0 0 30px !important; box-sizing:border-box !important; background:#f6f7f9 !important;}
+.stop-item.current .stop-time{background:var(--pink) !important; color:#fff !important;}
+.stop-item.trip-next .stop-time{background:#fff !important; color:var(--pink) !important;}
+
+/* 3) route 3 final single stop right aligned under the last stop of previous row */
+.flow-row.last-single-right{--count:5 !important;}
+.flow-row.last-single-right::before{width:100% !important;}
+.flow-row.last-single-right .flow-cell:first-child{grid-column:5 !important;}
+
+/* 4) stop name prefix removed in HTML render; keep text compact */
+.stop-label-prefix{display:none !important;}
+@media (max-width:900px){
+  #map{flex:1 1 50% !important;}
+  .side-panel{width:100% !important;}
+  .no-service{left:0 !important;}
+  .stop-item{height:78px !important;}
+  .stop-name{height:50px !important; flex-basis:50px !important;}
+  .stop-time{height:28px !important; min-height:28px !important; flex-basis:28px !important;}
+}
+
+
+/* === Patch: full-width stop gray band + map active for A/B buses === */
+.stop-item{align-items:stretch !important;}
+.stop-content{width:100% !important; align-self:stretch !important;}
+.stop-name{width:100% !important; margin:0 !important;}
+.stop-time{width:100% !important; align-self:stretch !important; margin-left:0 !important; margin-right:0 !important; border-radius:0 !important;}
+
+
+
+/* === PATCH: next-stop outline for both A/B + route arrow visibility/alignment only === */
+.flow-row{--route-line-y:calc(100% - 16px) !important; overflow:visible !important;}
+.flow-cell{overflow:visible !important;}
+.flow-row::before{top:var(--route-line-y) !important; transform:translateY(-50%) !important;}
+.flow-cell:not(:last-child)::after{display:block !important; top:var(--route-line-y) !important; transform:translateY(-50%) !important;}
+.flow-row.reverse .flow-cell:not(:last-child)::after{display:block !important; top:var(--route-line-y) !important; transform:translateY(-50%) !important;}
+.flow-row.normal:not(:last-child)::after{top:var(--route-line-y) !important;}
+.flow-row.reverse:not(:last-child)::after{top:var(--route-line-y) !important;}
+.flow-row.normal:not(:last-child) .flow-cell:last-child::before{top:calc(var(--route-line-y) + ((100% + var(--gap)) / 2) - 3px) !important;}
+.flow-row.reverse:not(:last-child) .flow-cell:first-child::before{top:calc(var(--route-line-y) + ((100% + var(--gap)) / 2) - 3px) !important;}
+.stop-item.trip-next{border-color:var(--pink) !important; box-shadow:0 4px 14px rgba(0,0,0,.05) !important;}
+.stop-item.trip-next .stop-time{background:#fff !important; color:var(--pink) !important; border-top:1px solid var(--pink-bg) !important;}
+.stop-time{width:100% !important; margin:0 !important; border-radius:0 !important;}
+
+
+/* === Final patch: labels one-line max 8 chars + ellipsis only === */
+.stop-name{
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  word-break:keep-all !important;
+  display:block !important;
+}
+.stop-label-text{
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  word-break:keep-all !important;
+  max-width:82px !important;
+}
+
+</style>
 </head>
 <body>
-  <div class="app">
-    <div class="hero">
-      <div class="hero-top">
-        <div class="bus-wrap">
-          <div class="bus-icon">🚌</div>
-          <div class="bus-name">복지카 1호</div>
-        </div>
-        <div class="badge">버튼형 간편 집계</div>
-      </div>
-
-      <div class="stop-order" id="stopOrder">1 / 22 정류장</div>
-      <div class="stop-name" id="stopName"></div>
-
-      <div class="nav-row">
-        <button class="nav-btn" onclick="prevStop()">← 이전 정류장</button>
-        <button class="nav-btn" onclick="nextStop()">다음 정류장 →</button>
-      </div>
+<header>
+  <div class="header-logo">🚌</div>
+  <div class="header-title">
+    <h1>동작복지카 실시간 위치</h1>
+    <p>어르신·장애인·임산부 등 교통약자를 위한 무료 셔틀</p>
+  </div>
+  <div class="header-time">
+    <div class="time" id="clock">00:00:00</div>
+    <div class="date" id="datestr"></div>
+  </div>
+</header>
+<div class="tab-bar">
+  <div class="tab active" onclick="selectRoute(1, this)">1호차 <span class="badge" style="background:#e84393">운행중</span></div>
+  <div class="tab" onclick="selectRoute(2, this)">2호차 <span class="badge" style="background:#f97335">운행중</span></div>
+  <div class="tab" onclick="selectRoute(3, this)">3호차 <span class="badge" style="background:#00a85a">운행중</span></div>
+  <div class="tab" onclick="selectRoute(4, this)">4호차 <span class="badge" style="background:#7b6fbd">운행중</span></div>
+</div>
+<div class="no-service" id="noServiceBar">
+  ⚠️ 현재 운행 시간이 아닙니다 (운행: 09:00~17:30, 점심 12:00~13:00 제외 / 토·일·공휴일 미운행)
+</div>
+<div class="main">
+  <div id="map"></div><div class="map-legend" id="mapLegend"></div>
+  <div class="side-panel">
+    <div class="panel-header">
+      <h2>🚌 동작복지카 1호차</h2>
+      <p>동작보건소↔상도은빛어르신복지관 순환</p>
     </div>
 
-    <div class="section">
-      <div class="section-title">승하차 기록</div>
-      <div class="ride-grid">
-        <button class="ride-btn board" onclick="addRide('승차')">승차</button>
-        <button class="ride-btn alight" onclick="addRide('하차')">하차</button>
+    <div class="bus-status" id="busStatus">
+      <div class="bus-icon-big">🚌</div>
+      <div class="bus-info-text">
+        <div class="bus-name" id="busName">현재 위치 계산중...</div>
+        <div class="bus-pos" id="busPos">-</div>
+        <div class="bus-next" id="busNext">-</div>
       </div>
+      <div class="status-dot" id="statusDot"></div>
     </div>
-
-    <div class="section">
-      <div class="section-title">하루 총 인원 보조 집계</div>
-      <div class="flag-grid">
-        <button class="flag-btn" onclick="addFlag('임산부')">임산부</button>
-        <button class="flag-btn" onclick="addFlag('장애인')">장애인</button>
-        <button class="flag-btn" onclick="addFlag('동행인')">동행인</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">오늘 승하차</div>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">승차</div>
-          <div class="stat-value" id="todayBoard">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">하차</div>
-          <div class="stat-value" id="todayAlight">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">총합</div>
-          <div class="stat-value" id="todayTotal">0</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">오늘 보조 집계</div>
-      <div class="substats-grid">
-        <div class="substat-card">
-          <div class="substat-label">임산부</div>
-          <div class="substat-value" id="todayPregnant">0</div>
-        </div>
-        <div class="substat-card">
-          <div class="substat-label">장애인</div>
-          <div class="substat-value" id="todayDisabled">0</div>
-        </div>
-        <div class="substat-card">
-          <div class="substat-label">동행인</div>
-          <div class="substat-value" id="todayCompanion">0</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">기록 관리</div>
-      <div class="toolbar">
-        <button class="tool-btn" onclick="downloadCSV()">CSV 다운로드</button>
-        <button class="tool-btn" onclick="downloadTodayCSV()">오늘 기록만 다운로드</button>
-        <button class="tool-btn" onclick="undoLastRide()">최근 승하차 취소</button>
-        <button class="tool-btn" onclick="undoLastFlag()">최근 보조집계 취소</button>
-        <button class="tool-btn" onclick="resetToday()">오늘 기록 초기화</button>
-        <button class="tool-btn" onclick="resetAll()">전체 초기화</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">최근 승하차 기록</div>
-      <div class="history-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>일시</th>
-              <th>정류장</th>
-              <th>구분</th>
-            </tr>
-          </thead>
-          <tbody id="historyBody"></tbody>
-        </table>
-      </div>
-      <div class="note">
-        임산부 · 장애인 · 동행인 버튼은 정류장과 연결되지 않고 하루 총계만 따로 올라갑니다.
-      </div>
+    <div class="route-legend"><span><i class="legend-dot legend-current"></i>현재 위치</span><span><i class="legend-dot legend-next"></i>다음 위치</span></div>
+    <div class="stops-list" id="stopsList"></div>
+    <div class="schedule-section" id="scheduleSection">
+      <div class="schedule-title" id="selectedStopTitle">정류장명</div>
+      <div class="schedule-grid" id="selectedStopTimes"></div>
     </div>
   </div>
+</div>
+<div class="info-bar">
+  <span>📋 1일 2대 운행 (16회)</span>
+  <span>⏰ 첫차 09:00</span>
+  <span>🔚 막차 17:30</span>
+  <span>🚫 점심·주말·공휴일 제외</span>
+</div>
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
+<div class="stop-modal" id="stopModal">
+  <div class="modal-handle"></div>
+  <div class="modal-header">
+    <div>
+      <div class="modal-title" id="modalTitle">정류장명</div>
+      <div class="modal-subtitle" id="modalSubtitle">도착 예정 시각</div>
+    </div>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div style="margin-bottom:8px; font-size:13px; font-weight:700; color:#1a1a2e;">오늘 운행 시간표</div>
+  <div class="modal-times" id="modalTimes"></div>
+</div>
+<script>
+const ROUTES = {"1":{"name":"1호차","color":"#e83e8c","description":"동작구보건소 기점 → 상도은빛어르신복지관 종점","tripLabels":["A","B","A","B","A","B","A","B","A","B","A","B","A","B","A","B"],"trips":[["09:00","09:02","09:04","09:07","09:09","09:10","09:10","09:11","09:12","09:13","09:14","09:15","09:18","09:20","09:21","09:24","09:25","09:28","09:31","09:32","09:35","09:37"],["09:30","09:32","09:34","09:37","09:39","09:40","09:40","09:41","09:42","09:43","09:44","09:45","09:48","09:50","09:51","09:54","09:55","09:58","10:01","10:02","10:05","10:07"],["10:00","10:02","10:04","10:07","10:09","10:10","10:10","10:11","10:12","10:13","10:14","10:15","10:18","10:20","10:21","10:24","10:25","10:28","10:31","10:32","10:35","10:37"],["10:30","10:32","10:34","10:37","10:39","10:40","10:40","10:41","10:42","10:43","10:44","10:45","10:48","10:50","10:51","10:54","10:55","10:58","11:01","11:02","11:05","11:07"],["11:00","11:02","11:04","11:07","11:09","11:10","11:10","11:11","11:12","11:13","11:14","11:15","11:18","11:20","11:21","11:24","11:25","11:28","11:31","11:32","11:35","11:37"],["11:30","11:32","11:34","11:37","11:39","11:40","11:40","11:41","11:42","11:43","11:44","11:45","11:48","11:50","11:51","11:54","11:55","11:58","12:01","12:02","12:05","12:07"],["13:00","13:02","13:04","13:07","13:09","13:10","13:10","13:11","13:12","13:13","13:14","13:15","13:18","13:20","13:21","13:24","13:25","13:28","13:31","13:32","13:35","13:37"],["13:30","13:32","13:34","13:37","13:39","13:40","13:40","13:41","13:42","13:43","13:44","13:45","13:48","13:50","13:51","13:54","13:55","13:58","14:01","14:02","14:05","14:07"],["14:00","14:02","14:04","14:07","14:09","14:10","14:10","14:11","14:12","14:13","14:14","14:15","14:18","14:20","14:21","14:24","14:25","14:28","14:31","14:32","14:35","14:37"],["14:30","14:32","14:34","14:37","14:39","14:40","14:40","14:41","14:42","14:43","14:44","14:45","14:48","14:50","14:51","14:54","14:55","14:58","15:01","15:02","15:05","15:07"],["15:00","15:02","15:04","15:07","15:09","15:10","15:10","15:11","15:12","15:13","15:14","15:15","15:18","15:20","15:21","15:24","15:25","15:28","15:31","15:32","15:35","15:37"],["15:30","15:32","15:34","15:37","15:39","15:40","15:40","15:41","15:42","15:43","15:44","15:45","15:48","15:50","15:51","15:54","15:55","15:58","16:01","16:02","16:05","16:07"],["16:00","16:02","16:04","16:07","16:09","16:10","16:10","16:11","16:12","16:13","16:14","16:15","16:18","16:20","16:21","16:24","16:25","16:28","16:31","16:32","16:35","16:37"],["16:30","16:32","16:34","16:37","16:39","16:40","16:40","16:41","16:42","16:43","16:44","16:45","16:48","16:50","16:51","16:54","16:55","16:58","17:01","17:02","17:05","17:07"],["17:00","17:02","17:04","17:07","17:09","17:10","17:10","17:11","17:12","17:13","17:14","17:15","17:18","17:20","17:21","17:24","17:25","17:28","17:31","17:32","17:35","17:37"],["17:30","17:32","17:34","17:37","17:39","17:40","17:40","17:41","17:42","17:43","17:44","17:45","17:48","17:50","17:51","17:54","17:55","17:58","18:01","18:02","18:05","18:07"]],"stops":[{"name":"동작구보건소·건강관리청","label":"동작구보건소·건강관리청","times":["09:00","09:30","10:00","10:30","11:00","11:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30"],"lat":37.50584838076247,"lng":126.94108158634634},{"name":"동작구청 신청사","label":"동작구청 신청사","times":["09:02","09:32","10:02","10:32","11:02","11:32","13:02","13:32","14:02","14:32","15:02","15:32","16:02","16:32","17:02","17:32"],"lat":37.50404758615511,"lng":126.93927048401542},{"name":"신상도초등학교","label":"신상도초등학교","times":["09:04","09:34","10:04","10:34","11:04","11:34","13:04","13:34","14:04","14:34","15:04","15:34","16:04","16:34","17:04","17:34"],"lat":37.49986628082674,"lng":126.94284896582491},{"name":"반올림피자·GS편의점","label":"반올림피자·GS편의점","times":["09:07","09:37","10:07","10:37","11:07","11:37","13:07","13:37","14:07","14:37","15:07","15:37","16:07","16:37","17:07","17:37"],"lat":37.498149833928295,"lng":126.94567580245405},{"name":"약수도서관(앞)","label":"약수도서관(앞)","times":["09:09","09:39","10:09","10:39","11:09","11:39","13:09","13:39","14:09","14:39","15:09","15:39","16:09","16:39","17:09","17:39"],"lat":37.497799086662766,"lng":126.94712581495037},{"name":"현대하이츠","label":"현대하이츠","times":["09:10","09:40","10:10","10:40","11:10","11:40","13:10","13:40","14:10","14:40","15:10","15:40","16:10","16:40","17:10","17:40"],"lat":37.496599914227644,"lng":126.94710741535903},{"name":"대왕주택","label":"대왕주택","times":["09:10","09:40","10:10","10:40","11:10","11:40","13:10","13:40","14:10","14:40","15:10","15:40","16:10","16:40","17:10","17:40"],"lat":37.49602907111914,"lng":126.94676379595262},{"name":"성주파크빌라","label":"성주파크빌라","times":["09:11","09:41","10:11","10:41","11:11","11:41","13:11","13:41","14:11","14:41","15:11","15:41","16:11","16:41","17:11","17:41"],"lat":37.49643063044523,"lng":126.94650100276937},{"name":"모건빌라","label":"모건빌라","times":["09:12","09:42","10:12","10:42","11:12","11:42","13:12","13:42","14:12","14:42","15:12","15:42","16:12","16:42","17:12","17:42"],"lat":37.49691547026529,"lng":126.9458576086061},{"name":"신상도교회","label":"신상도교회","times":["09:13","09:43","10:13","10:43","11:13","11:43","13:13","13:43","14:13","14:43","15:13","15:43","16:13","16:43","17:13","17:43"],"lat":37.497191381975654,"lng":126.9451355474975},{"name":"삼익아파트 입구","label":"삼익아파트 입구","times":["09:14","09:44","10:14","10:44","11:14","11:44","13:14","13:44","14:14","14:44","15:14","15:44","16:14","16:44","17:14","17:44"],"lat":37.4973893824978,"lng":126.9445592516488},{"name":"건영약수맨션","label":"건영약수맨션","times":["09:15","09:45","10:15","10:45","11:15","11:45","13:15","13:45","14:15","14:45","15:15","15:45","16:15","16:45","17:15","17:45"],"lat":37.49790070522805,"lng":126.94431735356977},{"name":"약수경로당","label":"약수경로당","times":["09:18","09:48","10:18","10:48","11:18","11:48","13:18","13:48","14:18","14:48","15:18","15:48","16:18","16:48","17:18","17:48"],"lat":37.499630262606914,"lng":126.94463795136801},{"name":"상도2동 경로당","label":"상도2동 경로당","times":["09:20","09:50","10:20","10:50","11:20","11:50","13:20","13:50","14:20","14:50","15:20","15:50","16:20","16:50","17:20","17:50"],"lat":37.501697731399716,"lng":126.9457777326466},{"name":"상도역","label":"상도역","times":["09:21","09:51","10:21","10:51","11:21","11:51","13:21","13:51","14:21","14:51","15:21","15:51","16:21","16:51","17:21","17:51"],"lat":37.5023728897805,"lng":126.94818456470875},{"name":"상도1동 주민센터","label":"상도1동 주민센터","times":["09:24","09:54","10:24","10:54","11:24","11:54","13:24","13:54","14:24","14:54","15:24","15:54","16:24","16:54","17:24","17:54"],"lat":37.498071764032986,"lng":126.95226099395728},{"name":"상도전통시장 새마을금고","label":"상도전통시장 새마을금고","times":["09:25","09:55","10:25","10:55","11:25","11:55","13:25","13:55","14:25","14:55","15:25","15:55","16:25","16:55","17:25","17:55"],"lat":37.49974028445108,"lng":126.95080154606649},{"name":"상도종합사회복지관","label":"상도종합사회복지관","times":["09:28","09:58","10:28","10:58","11:28","11:58","13:28","13:58","14:28","14:58","15:28","15:58","16:28","16:58","17:28","17:58"],"lat":37.50255524184995,"lng":126.95017461484224},{"name":"상도은빛어르신복지관·동작가족문화센터","label":"상도은빛어르신복지관·동작가족문화센터","times":["09:31","10:01","10:31","11:01","11:31","12:01","13:31","14:01","14:31","15:01","15:31","16:01","16:31","17:01","17:31","18:01"],"lat":37.50666971301351,"lng":126.95134274109432},{"name":"김영삼도서관","label":"김영삼도서관","times":["09:32","10:02","10:32","11:02","11:32","12:02","13:32","14:02","14:32","15:02","15:32","16:02","16:32","17:02","17:32","18:02"],"lat":37.505346556330764,"lng":126.95002179144745},{"name":"상도2동주민센터","label":"상도2동주민센터","times":["09:35","10:05","10:35","11:05","11:35","12:05","13:35","14:05","14:35","15:05","15:35","16:05","16:35","17:05","17:35","18:05"],"lat":37.505277206634105,"lng":126.94229873474592},{"name":"동작구보건소·건강관리청","label":"동작구보건소·건강관리청","times":["09:37","10:07","10:37","11:07","11:37","12:07","13:37","14:07","14:37","15:07","15:37","16:07","16:37","17:07","17:37","18:07"],"lat":37.505740037406994,"lng":126.94125677355936,"tag":"종점"}]},"2":{"name":"2호차","color":"#f97335","description":"건영섬유 기점 → 건영섬유 종점","tripLabels":["A","B","A","B","A","B","A","B","A","B","A","B","A","B","A","B"],"trips":[["09:00","09:01","09:02","09:03","09:03","09:04","09:06","09:09","09:10","09:11","09:19","09:20","09:21","09:22","09:23","09:25","09:26","09:28","09:29","09:30","09:31","09:34","09:35","09:37","09:39","09:40","09:41","09:41","09:42","09:43"],["09:30","09:31","09:32","09:33","09:33","09:34","09:36","09:39","09:40","09:41","09:49","09:50","09:51","09:52","09:53","09:55","09:56","09:58","09:59","10:00","10:01","10:04","10:05","10:07","10:09","10:10","10:11","10:11","10:12","10:13"],["10:00","10:01","10:02","10:03","10:03","10:04","10:06","10:09","10:10","10:11","10:19","10:20","10:21","10:22","10:23","10:25","10:26","10:28","10:29","10:30","10:31","10:34","10:35","10:37","10:39","10:40","10:41","10:41","10:42","10:43"],["10:30","10:31","10:32","10:33","10:33","10:34","10:36","10:39","10:40","10:41","10:49","10:50","10:51","10:52","10:53","10:55","10:56","10:58","10:59","11:00","11:01","11:04","11:05","11:07","11:09","11:10","11:11","11:11","11:12","11:13"],["11:00","11:01","11:02","11:03","11:03","11:04","11:06","11:09","11:10","11:11","11:19","11:20","11:21","11:22","11:23","11:25","11:26","11:28","11:29","11:30","11:31","11:34","11:35","11:37","11:39","11:40","11:41","11:41","11:42","11:43"],["11:30","11:31","11:32","11:33","11:33","11:34","11:36","11:39","11:40","11:41","11:49","11:50","11:51","11:52","11:53","11:55","11:56","11:58","11:59","12:00","12:01","12:04","12:05","12:07","12:09","12:10","12:11","12:11","12:12","12:13"],["13:00","13:01","13:02","13:03","13:03","13:04","13:06","13:09","13:10","13:11","13:19","13:20","13:21","13:22","13:23","13:25","13:26","13:28","13:29","13:30","13:31","13:34","13:35","13:37","13:39","13:40","13:41","13:41","13:42","13:43"],["13:30","13:31","13:32","13:33","13:33","13:34","13:36","13:39","13:40","13:41","13:49","13:50","13:51","13:52","13:53","13:55","13:56","13:58","13:59","14:00","14:01","14:04","14:05","14:07","14:09","14:10","14:11","14:11","14:12","14:13"],["14:00","14:01","14:02","14:03","14:03","14:04","14:06","14:09","14:10","14:11","14:19","14:20","14:21","14:22","14:23","14:25","14:26","14:28","14:29","14:30","14:31","14:34","14:35","14:37","14:39","14:40","14:41","14:41","14:42","14:43"],["14:30","14:31","14:32","14:33","14:33","14:34","14:36","14:39","14:40","14:41","14:49","14:50","14:51","14:52","14:53","14:55","14:56","14:58","14:59","15:00","15:01","15:04","15:05","15:07","15:09","15:10","15:11","15:11","15:12","15:13"],["15:00","15:01","15:02","15:03","15:03","15:04","15:06","15:09","15:10","15:11","15:19","15:20","15:21","15:22","15:23","15:25","15:26","15:28","15:29","15:30","15:31","15:34","15:35","15:37","15:39","15:40","15:41","15:41","15:42","15:43"],["15:30","15:31","15:32","15:33","15:33","15:34","15:36","15:39","15:40","15:41","15:49","15:50","15:51","15:52","15:53","15:55","15:56","15:58","15:59","16:00","16:01","16:04","16:05","16:07","16:09","16:10","16:11","16:11","16:12","16:13"],["16:00","16:01","16:02","16:03","16:03","16:04","16:06","16:09","16:10","16:11","16:19","16:20","16:21","16:22","16:23","16:25","16:26","16:28","16:29","16:30","16:31","16:34","16:35","16:37","16:39","16:40","16:41","16:41","16:42","16:43"],["16:30","16:31","16:32","16:33","16:33","16:34","16:36","16:39","16:40","16:41","16:49","16:50","16:51","16:52","16:53","16:55","16:56","16:58","16:59","17:00","17:01","17:04","17:05","17:07","17:09","17:10","17:11","17:11","17:12","17:13"],["17:00","17:01","17:02","17:03","17:03","17:04","17:06","17:09","17:10","17:11","17:19","17:20","17:21","17:22","17:23","17:25","17:26","17:28","17:29","17:30","17:31","17:34","17:35","17:37","17:39","17:40","17:41","17:41","17:42","17:43"],["17:30","17:31","17:32","17:33","17:33","17:34","17:36","17:39","17:40","17:41","17:49","17:50","17:51","17:52","17:53","17:55","17:56","17:58","17:59","18:00","18:01","18:04","18:05","18:07","18:09","18:10","18:11","18:11","18:12","18:13"]],"stops":[{"name":"건영섬유","label":"건영섬유","times":["09:00","09:30","10:00","10:30","11:00","11:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30"],"lat":37.49173242178112,"lng":126.97992077826206,"tag":"기점"},{"name":"세림아파트","label":"세림아파트","times":["09:01","09:31","10:01","10:31","11:01","11:31","13:01","13:31","14:01","14:31","15:01","15:31","16:01","16:31","17:01","17:31"],"lat":37.49248428534294,"lng":126.97923150189985},{"name":"사당삼성아파트·동작금강KCC아파트","label":"사당삼성아파트·동작금강KCC아파트","times":["09:02","09:32","10:02","10:32","11:02","11:32","13:02","13:32","14:02","14:32","15:02","15:32","16:02","16:32","17:02","17:32"],"lat":37.49337716485222,"lng":126.97870486837445},{"name":"동작이수사회복지관","label":"동작이수사회복지관","times":["09:03","09:33","10:03","10:33","11:03","11:33","13:03","13:33","14:03","14:33","15:03","15:33","16:03","16:33","17:03","17:33"],"lat":37.493190765246396,"lng":126.97701554445467},{"name":"사당유니드아파트 입구","label":"사당유니드아파트 입구","times":["09:03","09:33","10:03","10:33","11:03","11:33","13:03","13:33","14:03","14:33","15:03","15:33","16:03","16:33","17:03","17:33"],"lat":37.49357919226762,"lng":126.97619102541807},{"name":"구립사당빛나어린이집","label":"구립사당빛나어린이집","times":["09:04","09:34","10:04","10:34","11:04","11:34","13:04","13:34","14:04","14:34","15:04","15:34","16:04","16:34","17:04","17:34"],"lat":37.49126663175814,"lng":126.97645179840407},{"name":"두성상가(삼거리)","label":"두성상가(삼거리)","times":["09:06","09:36","10:06","10:36","11:06","11:36","13:06","13:36","14:06","14:36","15:06","15:36","16:06","16:36","17:06","17:36"],"lat":37.48927319709341,"lng":126.97718373816554},{"name":"삼일초등학교","label":"삼일초등학교","times":["09:09","09:39","10:09","10:39","11:09","11:39","13:09","13:39","14:09","14:39","15:09","15:39","16:09","16:39","17:09","17:39"],"lat":37.48816274826345,"lng":126.97512838438365},{"name":"리가아파트","label":"리가아파트","times":["09:10","09:40","10:10","10:40","11:10","11:40","13:10","13:40","14:10","14:40","15:10","15:40","16:10","16:40","17:10","17:40"],"lat":37.48939412062832,"lng":126.97390892634581},{"name":"삼익경로당","label":"삼익경로당","times":["09:11","09:41","10:11","10:41","11:11","11:41","13:11","13:41","14:11","14:41","15:11","15:41","16:11","16:41","17:11","17:41"],"lat":37.49006974692381,"lng":126.97225437530204},{"name":"사당종합체육관","label":"사당종합체육관","times":["09:19","09:49","10:19","10:49","11:19","11:49","13:19","13:49","14:19","14:49","15:19","15:49","16:19","16:49","17:19","17:49"],"lat":37.49247961204132,"lng":126.96966880711045},{"name":"학수경로당","label":"학수경로당","times":["09:20","09:50","10:20","10:50","11:20","11:50","13:20","13:50","14:20","14:50","15:20","15:50","16:20","16:50","17:20","17:50"],"lat":37.491452875237044,"lng":126.97094120750478},{"name":"굿모닝부동산","label":"굿모닝부동산","times":["09:21","09:51","10:21","10:51","11:21","11:51","13:21","13:51","14:21","14:51","15:21","15:51","16:21","16:51","17:21","17:51"],"lat":37.49037764658854,"lng":126.97080064055956},{"name":"로이파크·대림아파트","label":"로이파크·대림아파트","times":["09:22","09:52","10:22","10:52","11:22","11:52","13:22","13:52","14:22","14:52","15:22","15:52","16:22","16:52","17:22","17:52"],"lat":37.48812728554809,"lng":126.97287621228503},{"name":"삼일공원 경로당","label":"삼일공원 경로당","times":["09:23","09:53","10:23","10:53","11:23","11:53","13:23","13:53","14:23","14:53","15:23","15:53","16:23","16:53","17:23","17:53"],"lat":37.485691176046444,"lng":126.97435547639179},{"name":"보건분소","label":"보건분소","times":["09:25","09:55","10:25","10:55","11:25","11:55","13:25","13:55","14:25","14:55","15:25","15:55","16:25","16:55","17:25","17:55"],"lat":37.48354455240167,"lng":126.97547036263893},{"name":"동작푸드뱅크마켓","label":"동작푸드뱅크마켓","times":["09:26","09:56","10:26","10:56","11:26","11:56","13:26","13:56","14:26","14:56","15:26","15:56","16:26","16:56","17:26","17:56"],"lat":37.48405377121594,"lng":126.97415942635678},{"name":"사당3동주민센터","label":"사당3동주민센터","times":["09:28","09:58","10:28","10:58","11:28","11:58","13:28","13:58","14:28","14:58","15:28","15:58","16:28","16:58","17:28","17:58"],"lat":37.48662405203237,"lng":126.97197905140655},{"name":"사당현대아파트 입구","label":"사당현대아파트 입구","times":["09:29","09:59","10:29","10:59","11:29","11:59","13:29","13:59","14:29","14:59","15:29","15:59","16:29","16:59","17:29","17:59"],"lat":37.488170816661636,"lng":126.97011679293092},{"name":"사당3동주민센터","label":"사당3동주민센터","times":["09:30","10:00","10:30","11:00","11:30","12:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00"],"lat":37.48658705610987,"lng":126.97189788071518},{"name":"동작푸드뱅크마켓","label":"동작푸드뱅크마켓","times":["09:31","10:01","10:31","11:01","11:31","12:01","13:31","14:01","14:31","15:01","15:31","16:01","16:31","17:01","17:31","18:01"],"lat":37.48403489084511,"lng":126.97408317436327},{"name":"남성초등학교 사거리","label":"남성초등학교 사거리","times":["09:34","10:04","10:34","11:04","11:34","12:04","13:34","14:04","14:34","15:04","15:34","16:04","16:34","17:04","17:34","18:04"],"lat":37.483888025865554,"lng":126.9777238699964},{"name":"동작삼일수영장","label":"동작삼일수영장","times":["09:35","10:05","10:35","11:05","11:35","12:05","13:35","14:05","14:35","15:05","15:35","16:05","16:35","17:05","17:35","18:05"],"lat":37.48729350330942,"lng":126.97446618312551},{"name":"삼일초등학교","label":"삼일초등학교","times":["09:37","10:07","10:37","11:07","11:37","12:07","13:37","14:07","14:37","15:07","15:37","16:07","16:37","17:07","17:37","18:07"],"lat":37.48815861171555,"lng":126.97515643773045},{"name":"두성상가(삼거리, 복지관방면)","label":"두성상가(삼거리, 복지관방면)","times":["09:39","10:09","10:39","11:09","11:39","12:09","13:39","14:09","14:39","15:09","15:39","16:09","16:39","17:09","17:39","18:09"],"lat":37.48926500312237,"lng":126.97715699521262},{"name":"구립사당빛나어린이집","label":"구립사당빛나어린이집","times":["09:40","10:10","10:40","11:10","11:40","12:10","13:40","14:10","14:40","15:10","15:40","16:10","16:40","17:10","17:40","18:10"],"lat":37.491263593837104,"lng":126.97646139621469},{"name":"사당유니드아파트 입구","label":"사당유니드아파트 입구","times":["09:41","10:11","10:41","11:11","11:41","12:11","13:41","14:11","14:41","15:11","15:41","16:11","16:41","17:11","17:41","18:11"],"lat":37.49356051891563,"lng":126.97617738937186},{"name":"동작이수사회복지관","label":"동작이수사회복지관","times":["09:41","10:11","10:41","11:11","11:41","12:11","13:41","14:11","14:41","15:11","15:41","16:11","16:41","17:11","17:41","18:11"],"lat":37.493184491884236,"lng":126.97701992803604},{"name":"세림아파트","label":"세림아파트","times":["09:42","10:12","10:42","11:12","11:42","12:12","13:42","14:12","14:42","15:12","15:42","16:12","16:42","17:12","17:42","18:12"],"lat":37.492493274633915,"lng":126.9792298373722},{"name":"건영섬유","label":"건영섬유","times":["09:43","10:13","10:43","11:13","11:43","12:13","13:43","14:13","14:43","15:13","15:43","16:13","16:43","17:13","17:43","18:13"],"lat":37.49174717923677,"lng":126.97993320678648,"tag":"종점"}]},"3":{"name":"3호차","color":"#00a85a","description":"서광전기 기점 → 서광전기 종점","tripLabels":["A","B","A","B","A","B","A","B","A","B","A","B","A","B"],"trips":[["09:00","09:02","09:03","09:04","09:05","09:06","09:08","09:12","09:18","09:20","09:24","09:25","09:32","09:34","09:37","09:39","09:40","09:41","09:43","09:45","09:47","09:48","09:50","09:52","09:54","09:55"],["09:30","09:32","09:33","09:34","09:35","09:36","09:38","09:42","09:48","09:50","09:54","09:55","10:02","10:04","10:07","10:09","10:10","10:11","10:13","10:15","10:17","10:18","10:20","10:22","10:24","10:25"],["10:10","10:12","10:13","10:14","10:15","10:16","10:18","10:22","10:28","10:30","10:34","10:35","10:42","10:44","10:47","10:49","10:50","10:51","10:53","10:55","10:57","10:58","11:00","11:02","11:04","11:05"],["10:40","10:42","10:43","10:44","10:45","10:46","10:48","10:52","10:58","11:00","11:04","11:05","11:12","11:14","11:17","11:19","11:20","11:21","11:23","11:25","11:27","11:28","11:30","11:32","11:34","11:35"],["11:20","11:22","11:23","11:24","11:25","11:26","11:28","11:32","11:38","11:40","11:44","11:45","11:52","11:54","11:57","11:59","12:00","12:01","12:03","12:05","12:07","12:08","12:10","12:12","12:14","12:15"],["11:50","11:52","11:53","11:54","11:55","11:56","11:58","12:02","12:08","12:10","12:14","12:15","12:22","12:24","12:27","12:29","12:30","12:31","12:33","12:35","12:37","12:38","12:40","12:42","12:44","12:45"],["13:20","13:22","13:23","13:24","13:25","13:26","13:28","13:32","13:38","13:40","13:44","13:45","13:52","13:54","13:57","13:59","14:00","14:01","14:03","14:05","14:07","14:08","14:10","14:12","14:14","14:15"],["13:50","13:52","13:53","13:54","13:55","13:56","13:58","14:02","14:08","14:10","14:14","14:15","14:22","14:24","14:27","14:29","14:30","14:31","14:33","14:35","14:37","14:38","14:40","14:42","14:44","14:45"],["14:30","14:32","14:33","14:34","14:35","14:36","14:38","14:42","14:48","14:50","14:54","14:55","15:02","15:04","15:07","15:09","15:10","15:11","15:13","15:15","15:17","15:18","15:20","15:22","15:24","15:25"],["15:00","15:02","15:03","15:04","15:05","15:06","15:08","15:12","15:18","15:20","15:24","15:25","15:32","15:34","15:37","15:39","15:40","15:41","15:43","15:45","15:47","15:48","15:50","15:52","15:54","15:55"],["15:40","15:42","15:43","15:44","15:45","15:46","15:48","15:52","15:58","16:00","16:04","16:05","16:12","16:14","16:17","16:19","16:20","16:21","16:23","16:25","16:27","16:28","16:30","16:32","16:34","16:35"],["16:10","16:12","16:13","16:14","16:15","16:16","16:18","16:22","16:28","16:30","16:34","16:35","16:42","16:44","16:47","16:49","16:50","16:51","16:53","16:55","16:57","16:58","17:00","17:02","17:04","17:05"],["16:50","16:52","16:53","16:54","16:55","16:56","16:58","17:02","17:08","17:10","17:14","17:15","17:22","17:24","17:27","17:29","17:30","17:31","17:33","17:35","17:37","17:38","17:40","17:42","17:44","17:45"],["17:20","17:22","17:23","17:24","17:25","17:26","17:28","17:32","17:38","17:40","17:44","17:45","17:52","17:54","17:57","17:59","18:00","18:01","18:03","18:05","18:07","18:08","18:10","18:12","18:14","18:15"]],"stops":[{"name":"서광전기","label":"서광전기","times":["09:00","09:30","10:10","10:40","11:20","11:50","13:20","13:50","14:30","15:00","15:40","16:10","16:50","17:20"],"lat":37.480801868260286,"lng":126.97117097344591,"tag":"기점"},{"name":"진흥아파트 입구","label":"진흥아파트 입구","times":["09:02","09:32","10:12","10:42","11:22","11:52","13:22","13:52","14:32","15:02","15:42","16:12","16:52","17:22"],"lat":37.480517778930206,"lng":126.96961742390704},{"name":"한옥카페 담소당","label":"한옥카페 담소당","times":["09:03","09:33","10:13","10:43","11:23","11:53","13:23","13:53","14:33","15:03","15:43","16:13","16:53","17:23"],"lat":37.48078450389579,"lng":126.96806267705227},{"name":"사당4동 자율방범대","label":"사당4동 자율방범대","times":["09:04","09:34","10:14","10:44","11:24","11:54","13:24","13:54","14:34","15:04","15:44","16:14","16:54","17:24"],"lat":37.482170880784665,"lng":126.9696386102164},{"name":"사당4동경로당","label":"사당4동경로당","times":["09:05","09:35","10:15","10:45","11:25","11:55","13:25","13:55","14:35","15:05","15:45","16:15","16:55","17:25"],"lat":37.48261872800187,"lng":126.97022239184452},{"name":"사당종합사회복지관","label":"사당종합사회복지관","times":["09:06","09:36","10:16","10:46","11:26","11:56","13:26","13:56","14:36","15:06","15:46","16:16","16:56","17:26"],"lat":37.48323534145064,"lng":126.97155318144718},{"name":"사당문화회관","label":"사당문화회관","times":["09:08","09:38","10:18","10:48","11:28","11:58","13:28","13:58","14:38","15:08","15:48","16:18","16:58","17:28"],"lat":37.48470707696529,"lng":126.96948877253874},{"name":"경남아너스빌아파트","label":"경남아너스빌아파트","times":["09:12","09:42","10:22","10:52","11:32","12:02","13:32","14:02","14:42","15:12","15:52","16:22","17:02","17:32"],"lat":37.48809912374584,"lng":126.96772092265485},{"name":"사당롯데캐슬골든포레","label":"사당롯데캐슬골든포레","times":["09:18","09:48","10:28","10:58","11:38","12:08","13:38","14:08","14:48","15:18","15:58","16:28","17:08","17:38"],"lat":37.49240363331927,"lng":126.96326866548424},{"name":"롯데캐슬소공원사거리","label":"롯데캐슬소공원사거리","times":["09:20","09:50","10:30","11:00","11:40","12:10","13:40","14:10","14:50","15:20","16:00","16:30","17:10","17:40"],"lat":37.489844482230595,"lng":126.96359804300238},{"name":"삼호그린아파트","label":"삼호그린아파트","times":["09:24","09:54","10:34","11:04","11:44","12:14","13:44","14:14","14:54","15:24","16:04","16:34","17:14","17:44"],"lat":37.48652516666927,"lng":126.96548809067332},{"name":"사당5동주민센터","label":"사당5동주민센터","times":["09:25","09:55","10:35","11:05","11:45","12:15","13:45","14:15","14:55","15:25","16:05","16:35","17:15","17:45"],"lat":37.48567681170016,"lng":126.96682237889138},{"name":"롯데리아 남성역점","label":"롯데리아 남성역점","times":["09:32","10:02","10:42","11:12","11:52","12:22","13:52","14:22","15:02","15:32","16:12","16:42","17:22","17:52"],"lat":37.484726213786956,"lng":126.97043184695713},{"name":"남성역 1번출구","label":"남성역 1번출구","times":["09:34","10:04","10:44","11:14","11:54","12:24","13:54","14:24","15:04","15:34","16:14","16:44","17:24","17:54"],"lat":37.48414650537211,"lng":126.97222972578982},{"name":"남성역 골목시장","label":"남성역 골목시장","times":["09:37","10:07","10:47","11:17","11:57","12:27","13:57","14:27","15:07","15:37","16:17","16:47","17:27","17:57"],"lat":37.482924073915655,"lng":126.97278512910725},{"name":"오거리","label":"오거리","times":["09:39","10:09","10:49","11:19","11:59","12:29","13:59","14:29","15:09","15:39","16:19","16:49","17:29","17:59"],"lat":37.48171232828989,"lng":126.97241248596708},{"name":"임해성 내과의원","label":"임해성 내과의원","times":["09:40","10:10","10:50","11:20","12:00","12:30","14:00","14:30","15:10","15:40","16:20","16:50","17:30","18:00"],"lat":37.48077665515255,"lng":126.97182790142887},{"name":"휴먼시아 아파트정문","label":"휴먼시아 아파트정문","times":["09:41","10:11","10:51","11:21","12:01","12:31","14:01","14:31","15:11","15:41","16:21","16:51","17:31","18:01"],"lat":37.47969952059751,"lng":126.97123455349725},{"name":"휴먼시아 아파트후문","label":"휴먼시아 아파트후문","times":["09:43","10:13","10:53","11:23","12:03","12:33","14:03","14:33","15:13","15:43","16:23","16:53","17:33","18:03"],"lat":37.47787296088508,"lng":126.96951833808674},{"name":"삼익아파트 입구","label":"삼익아파트 입구","times":["09:45","10:15","10:55","11:25","12:05","12:35","14:05","14:35","15:15","15:45","16:25","16:55","17:35","18:05"],"lat":37.477156663307696,"lng":126.97022060072646},{"name":"남성중학교앞(편의점)","label":"남성중학교앞(편의점)","times":["09:47","10:17","10:57","11:27","12:07","12:37","14:07","14:37","15:17","15:47","16:27","16:57","17:37","18:07"],"lat":37.478185597211336,"lng":126.97246316773771},{"name":"사당1동경로당","label":"사당1동경로당","times":["09:48","10:18","10:58","11:28","12:08","12:38","14:08","14:38","15:18","15:48","16:28","16:58","17:38","18:08"],"lat":37.47885371037327,"lng":126.97325966930453},{"name":"삼일육슈퍼","label":"삼일육슈퍼","times":["09:50","10:20","11:00","11:30","12:10","12:40","14:10","14:40","15:20","15:50","16:30","17:00","17:40","18:10"],"lat":37.4805441047868,"lng":126.97398195749963},{"name":"사당4동주민센터 임시청사","label":"사당4동주민센터 임시청사","times":["09:52","10:22","11:02","11:32","12:12","12:42","14:12","14:42","15:22","15:52","16:32","17:02","17:42","18:12"],"lat":37.48146127779296,"lng":126.97542128122467},{"name":"사당4동 어린이집","label":"사당4동 어린이집","times":["09:54","10:24","11:04","11:34","12:14","12:44","14:14","14:44","15:24","15:54","16:34","17:04","17:44","18:14"],"lat":37.480624323978375,"lng":126.97306442260589},{"name":"서광전기","label":"서광전기","times":["09:55","10:25","11:05","11:35","12:15","12:45","14:15","14:45","15:25","15:55","16:35","17:05","17:45","18:15"],"lat":37.48080456282479,"lng":126.97118738423592,"tag":"종점"}]},"4":{"name":"4호차","color":"#7772b8","description":"흑석권역 순환 노선","tripLabels":["A","B","A","B","A","B","A","B","A","B"],"trips":[["X","X","08:50","08:53","08:55","08:56","08:58","09:00","09:04","09:10","09:12","09:22","09:25","09:27","09:28","09:33","09:35","09:36","09:37","09:40","09:42","09:45"],["09:40","09:42","09:45","09:48","09:50","09:51","09:53","09:55","09:59","10:05","10:07","10:17","10:20","10:22","10:23","10:28","10:30","10:31","10:32","10:35","10:37","10:40"],["10:40","10:42","10:45","10:48","10:50","10:51","10:53","10:55","10:59","11:05","11:07","11:17","11:20","11:22","11:23","11:28","11:30","11:31","11:32","11:35","11:37","11:40"],["11:10","11:12","11:15","11:18","11:20","11:21","11:23","11:25","11:29","11:35","11:37","11:47","11:50","11:52","11:53","11:58","12:00","12:01","12:02","12:05","12:07","12:10"],["13:00","13:02","13:05","13:08","13:10","13:11","13:13","13:15","13:19","13:25","13:27","13:37","13:40","13:42","13:43","13:48","13:50","13:51","13:52","13:55","13:57","14:00"],["13:50","13:52","13:55","13:58","14:00","14:01","14:03","14:05","14:09","14:15","14:17","14:27","14:30","14:32","14:33","14:38","14:40","14:41","14:42","14:45","14:47","14:50"],["14:40","14:42","14:45","14:48","14:50","14:51","14:53","14:55","14:59","15:05","15:07","15:17","15:20","15:22","15:23","15:28","15:30","15:31","15:32","15:35","15:37","15:40"],["15:30","15:32","15:35","15:38","15:40","15:41","15:43","15:45","15:49","15:55","15:57","16:07","16:10","16:12","16:13","16:18","16:20","16:21","16:22","16:25","16:27","16:30"],["16:20","16:22","16:25","16:28","16:30","16:31","16:33","16:35","16:39","16:45","16:47","16:57","17:00","17:02","17:03","17:08","17:10","17:11","17:12","17:15","17:17","17:20"],["17:10","17:12","17:15","17:18","17:20","17:21","17:23","17:25","17:29","17:35","17:37","17:47","17:50","17:52","17:53","17:58","18:00","18:01","18:02","18:05","18:07","18:10"]],"stops":[{"name":"동양중학교","label":"동양중학교","times":["X","09:40","10:40","11:10","13:00","13:50","14:40","15:30","16:20","17:10"],"lat":37.509710958269906,"lng":126.95669871256723,"tag":"기점"},{"name":"노들역 3번출구","label":"노들역 3번출구","times":["X","09:42","10:42","11:12","13:02","13:52","14:42","15:32","16:22","17:12"],"lat":37.512191632604896,"lng":126.95441963123363},{"name":"흑석종합사회복지관","label":"흑석종합사회복지관","times":["08:50","09:45","10:45","11:15","13:05","13:55","14:45","15:35","16:25","17:15"],"lat":37.50988639846156,"lng":126.95936007084771},{"name":"중앙대병원후문","label":"중앙대병원후문","times":["08:53","09:48","10:48","11:18","13:08","13:58","14:48","15:38","16:28","17:18"],"lat":37.50608623417412,"lng":126.96113685876827},{"name":"흑석센트리빌2차아파트","label":"흑석센트리빌2차아파트","times":["08:55","09:50","10:50","11:20","13:10","14:00","14:50","15:40","16:30","17:20"],"lat":37.50187269698999,"lng":126.960195850032},{"name":"유앤미아아파트 동양아파트","label":"유앤미아아파트 동양아파트","times":["08:56","09:51","10:51","11:21","13:11","14:01","14:51","15:41","16:31","17:21"],"lat":37.50067122635551,"lng":126.95965711147556},{"name":"달마사·흑석어린이집","label":"달마사·흑석어린이집","times":["08:58","09:53","10:53","11:23","13:13","14:03","14:53","15:43","16:33","17:23"],"lat":37.49946219728827,"lng":126.95991518954077},{"name":"청호아파트","label":"청호아파트","times":["09:00","09:55","10:55","11:25","13:15","14:05","14:55","15:45","16:35","17:25"],"lat":37.501404318791074,"lng":126.96309461241646},{"name":"큰별어린이집","label":"큰별어린이집","times":["09:04","09:59","10:59","11:29","13:19","14:09","14:59","15:49","16:39","17:29"],"lat":37.50464245302501,"lng":126.96507776575334},{"name":"흑석동 주민센터","label":"흑석동 주민센터","times":["09:10","10:05","11:05","11:35","13:25","14:15","15:05","15:55","16:45","17:35"],"lat":37.505820116309366,"lng":126.96660414027366},{"name":"명수대현대아파트","label":"명수대현대아파트","times":["09:12","10:07","11:07","11:37","13:27","14:17","15:07","15:57","16:47","17:37"],"lat":37.50712421481521,"lng":126.96689412352697},{"name":"동양중학교(노량진방향)","label":"동양중학교(노량진방향)","times":["09:22","10:17","11:17","11:47","13:37","14:27","15:17","16:07","16:57","17:47"],"lat":37.5096395701151,"lng":126.9567086715187},{"name":"건영아파트 후문","label":"건영아파트 후문","times":["09:25","10:20","11:20","11:50","13:40","14:30","15:20","16:10","17:00","17:50"],"lat":37.50809204092697,"lng":126.95040518820537},{"name":"동작구자원봉사센터","label":"동작구자원봉사센터","times":["09:27","10:22","11:22","11:52","13:42","14:32","15:22","16:12","17:02","17:52"],"lat":37.50811370254483,"lng":126.94674738397379},{"name":"신동아리버파크 103동 앞","label":"신동아리버파크 103동 앞","times":["09:28","10:23","11:23","11:53","13:43","14:33","15:23","16:13","17:03","17:53"],"lat":37.507068398517305,"lng":126.94260801339573},{"name":"동작구보건소·건강관리청","label":"동작구보건소·건강관리청","times":["09:33","10:28","11:28","11:58","13:48","14:38","15:28","16:18","17:08","17:58"],"lat":37.50575189445085,"lng":126.94109346334335},{"name":"이용국내과","label":"이용국내과","times":["09:35","10:30","11:30","12:00","13:50","14:40","15:30","16:20","17:10","18:00"],"lat":37.50840876673827,"lng":126.94019786022756},{"name":"노량진초등학교","label":"노량진초등학교","times":["09:36","10:31","11:31","12:01","13:51","14:41","15:31","16:21","17:11","18:01"],"lat":37.511262873555026,"lng":126.94029306575203},{"name":"노량진역 3-1번 출구","label":"노량진역 3-1번 출구","times":["09:37","10:32","11:32","12:02","13:52","14:42","15:32","16:22","17:12","18:02"],"lat":37.51352040936571,"lng":126.94152151064321},{"name":"노량진1동주민센터","label":"노량진1동주민센터","times":["09:40","10:35","11:35","12:05","13:55","14:45","15:35","16:25","17:15","18:05"],"lat":37.51320067941303,"lng":126.94656542245309},{"name":"노들역 5번출구","label":"노들역 5번출구","times":["09:42","10:37","11:37","12:07","13:57","14:47","15:37","16:27","17:17","18:07"],"lat":37.512571944433574,"lng":126.95234367742603},{"name":"동양중학교","label":"동양중학교","times":["09:45","10:40","11:40","12:10","14:00","14:50","15:40","16:30","17:20","18:10"],"lat":37.50957066796573,"lng":126.95682554511899,"tag":"종점"}]}};
+let currentRouteNo = 1;
+let currentRoute = ROUTES[1];
+let selectedStopIndex = 0;
+let manualSelectedStop = false;
 
-  <script>
-    const STOPS = [
-      "동작구보건소·건강관리청(기점)",
-      "동작구청 신청사",
-      "신상도초등학교",
-      "반올림피자·GS편의점",
-      "약수도서관(앞)",
-      "현대하이츠",
-      "대양주택",
-      "성주파크빌라",
-      "모건빌라",
-      "신상도교회",
-      "삼익아파트입구",
-      "건영약수맨션",
-      "약수경로당",
-      "상도2동 경로당",
-      "상도역",
-      "상도1동 주민센터",
-      "상도전통시장 새마을금고",
-      "상도종합사회복지관",
-      "상도은빛어르신복지관·동작가족센터",
-      "김영삼도서관",
-      "상도2동 주민센터",
-      "동작구보건소·건강관리청(종점)"
-    ];
+function parseTimeToMin(t) {
+  if (!t || t === 'X') return null;
+  const [h,m]=String(t).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h*60+m;
+}
+function minToLabel(total) {
+  const h = Math.floor(total / 60) % 24;
+  const m = ((Math.round(total) % 60) + 60) % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function getRouteStarts(route) {
+  if (Array.isArray(route.trips)) {
+    return route.trips.map(trip => {
+      const first = trip.map(parseTimeToMin).find(v => v !== null);
+      return first;
+    }).filter(v => v !== null);
+  }
+  if (route.scheduleStarts) return route.scheduleStarts.map(parseTimeToMin).filter(v => v !== null);
+  const hours = route.departures || [9,10,11,14,15,16,17];
+  return hours.flatMap(h => [h*60, h*60+30]);
+}
+function getStopOffset(stop) {
+  if (typeof stop.offset === 'number') return stop.offset;
+  return typeof stop.minA === 'number' ? stop.minA : 0;
+}
+function getStopTimes(stop, route=currentRoute) {
+  if (Array.isArray(stop.times)) return stop.times.filter(t => t && t !== 'X');
+  const starts = getRouteStarts(route);
+  const offset = getStopOffset(stop);
+  return starts.map(sm => minToLabel(sm + offset));
+}
 
-    const STORAGE_RIDES = "bus_counter_rides_ui_refresh_v1";
-    const STORAGE_FLAGS = "bus_counter_flags_ui_refresh_v1";
-    const STORAGE_INDEX = "bus_counter_index_ui_refresh_v1";
+function setTheme(route) {
+  document.documentElement.style.setProperty('--pink', route.color);
+  document.documentElement.style.setProperty('--pink-light', route.color);
+  document.documentElement.style.setProperty('--pink-bg', hexToRgba(route.color, 0.10));
+  document.documentElement.style.setProperty('--shadow', `0 4px 24px ${hexToRgba(route.color, 0.15)}`);
+  document.querySelector('.panel-header h2').textContent = `🚌 동작복지카 ${route.name}`;
+  document.querySelector('.panel-header p').textContent = route.description || '';
+  document.querySelector('.info-bar').innerHTML = `<span>📋 ${route.name} 운행</span><span>⏰ 첫차 ${getStopTimes(route.stops[0], route)[0] || '-'}</span><span>🔚 막차 ${getStopTimes(route.stops[route.stops.length-1], route).slice(-1)[0] || '-'}</span><span>🚫 점심·주말·공휴일 제외</span>`;
+  const lg = document.getElementById('mapLegend'); if (lg) lg.textContent = `${route.name} 노선`;
+}
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
-    function getRides() {
-      try {
-        const raw = localStorage.getItem(STORAGE_RIDES);
-        return raw ? JSON.parse(raw) : [];
-      } catch (e) {
-        return [];
-      }
+const map = L.map('map', {
+  center: [37.5005, 126.948],
+  zoom: 15,
+  zoomControl: false,
+});
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © Carto',
+  maxZoom: 19,
+}).addTo(map);
+let stopMarkers = [];
+let busMarkerA = null, busMarkerB = null;
+let routeLine = null;
+let shouldFitRoute = true; // 최초 진입/호차 변경 때만 전체 노선 맞춤
+function formatLabel(name) {
+  // 지도/정류장 라벨: 한 줄 최대 8글자, 초과 시 ... 처리
+  const clean = String(name || '').trim().replace(/\s+/g, '');
+  return clean.length > 8 ? clean.slice(0, 8) + '...' : clean;
+}
+function formatPanelStopName(name) {
+  const clean = String(name || '').trim();
+  return clean.length > 8 ? clean.slice(0, 8) + '...' : clean;
+}
+function createStopIcon(isCurrent, stop, isStart) {
+  const label   = formatLabel(stop.name);
+  const dotCls  = isCurrent ? 'current' : '';
+  const textCls = isCurrent ? 'current' : isStart ? 'start' : '';
+  const times = getStopTimes(stop).map(t => {
+    const [h, m] = t.split(':').map(Number);
+    return { label: t, sec: h*3600 + m*60 };
+  }).sort((a,b) => a.sec - b.sec);
+  const rows = [];
+  for (let i=0; i<times.length; i+=2) rows.push(times.slice(i, i+2));
+  const timeRows = rows.map(row => `<div class="mp-row">${row.map(c => {
+    const cls = getTimeChipClass(c.sec, times);
+    return `<span class="mp-chip ${cls}">${c.label}</span>`;
+  }).join('')}${row.length === 1 ? '<span class="mp-chip-empty"></span>' : ''}</div>`).join('');
+  return L.divIcon({
+    html: `<div class="stop-label-wrap">
+             <div class="stop-label-dot ${dotCls}"></div>
+             <div class="stop-label-text ${textCls}">${label}</div>
+             <div class="map-popup">
+               <div class="mp-body">
+                 <div class="mp-name">${stop.name}</div>
+                 <div class="mp-times">${timeRows}</div>
+               </div>
+             </div>
+           </div>`,
+    className: '',
+    iconSize: [64, 48],
+    iconAnchor: [32, 7],
+  });
+}
+function createBusIcon(label) {
+  return L.divIcon({
+    html: `<div class="bus-marker"><span class="bus-ab">${label}</span><span class="bus-emoji">🚌</span></div>`,
+    className: '',
+    iconSize: [42, 50],
+    iconAnchor: [21, 34],
+  });
+}
+function renderStops(currentIdx, currentIdxB) {
+  stopMarkers.forEach(m => map.removeLayer(m));
+  stopMarkers = [];
+  const activeSet = new Set();
+  [currentIdx, currentIdxB].forEach(i => { if (Number.isInteger(i) && i >= 0) activeSet.add(i); });
+  currentRoute.stops.forEach((stop, i) => {
+    const isActiveStop = activeSet.has(i);
+    const marker = L.marker([stop.lat, stop.lng], {
+      icon: createStopIcon(isActiveStop, stop, stop.tag === '기점'),
+      zIndexOffset: isActiveStop ? 500 : 0,
+    }).addTo(map);
+    marker.on('click', () => { selectStopSchedule(i, true); map.panTo([stop.lat, stop.lng]); });
+    stopMarkers.push(marker);
+  });
+  if (routeLine) map.removeLayer(routeLine);
+  const latlngs = currentRoute.stops.map(s => [s.lat, s.lng]);
+  routeLine = L.polyline(latlngs, {
+    color: currentRoute.color,
+    weight: 3,
+    opacity: 0.65,
+    dashArray: '6 4',
+  }).addTo(map);
+  if (shouldFitRoute && latlngs.length) {
+    map.fitBounds(latlngs, { padding: [35, 35] });
+    shouldFitRoute = false;
+  }
+}
+function getNowSec() {
+  const n = new Date();
+  return n.getHours() * 3600 + n.getMinutes() * 60 + n.getSeconds();
+}
+function getTimeChipClass(sec, allTimes) {
+  const now = getNowSec();
+  // 현재 위치: 해당 시간의 정각 기준 ±30초만 채움 처리
+  if (Math.abs(sec - now) <= 30) return 'active';
+  // 다음 위치: 현재 위치 범위를 지난 뒤 가장 가까운 예정 시간만 외곽선 처리
+  const sorted = (allTimes || []).slice().sort((a, b) => a.sec - b.sec);
+  const next = sorted.find(t => t.sec > now + 30);
+  if (next && next.sec === sec) return 'next';
+  return '';
+}
+function getNow() {
+  const sec = getNowSec();
+  return { h: Math.floor(sec / 3600), m: Math.floor((sec % 3600) / 60), s: sec % 60 };
+}
+function totalMin(h, m) { return h * 60 + m; }
+
+function isServiceTime() {
+  const nowMin = getNowSec() / 60;
+  const day = new Date().getDay();
+  if (day === 0 || day === 6) return false;
+  if (Array.isArray(currentRoute.trips)) {
+    return currentRoute.trips.some(trip => {
+      const mins = trip.map(parseTimeToMin).filter(v => v !== null);
+      if (!mins.length) return false;
+      return nowMin >= Math.min(...mins) - 0.5 && nowMin <= Math.max(...mins) + 0.5;
+    });
+  }
+  const starts = getRouteStarts(currentRoute);
+  const first = Math.min(...starts);
+  const last = Math.max(...starts) + Math.max(...currentRoute.stops.map(getStopOffset));
+  return nowMin >= first && nowMin <= last;
+}
+function calcBusLatLng(elapsed) {
+  const stopMins = currentRoute.stops.map(getStopOffset);
+  const stops    = currentRoute.stops;
+  const last     = stopMins.length - 1;
+  if (elapsed <= stopMins[0] + 0.5) return { lat: stops[0].lat, lng: stops[0].lng, stopIdx: 0 };
+  if (elapsed >= stopMins[last] - 0.5) return { lat: stops[last].lat, lng: stops[last].lng, stopIdx: last };
+  for (let si = 0; si < last; si++) {
+    const curMin  = stopMins[si];
+    const nextMin = stopMins[si + 1];
+    if (elapsed <= curMin + 0.5) return { lat: stops[si].lat, lng: stops[si].lng, stopIdx: si };
+    if (elapsed >= nextMin - 0.5) continue;
+    const moveStart = curMin + 0.5;
+    const moveEnd   = nextMin - 0.5;
+    const t = (elapsed - moveStart) / Math.max(0.1, (moveEnd - moveStart));
+    const tClamped = Math.max(0, Math.min(1, t));
+    return {
+      lat: stops[si].lat + (stops[si+1].lat - stops[si].lat) * tClamped,
+      lng: stops[si].lng + (stops[si+1].lng - stops[si].lng) * tClamped,
+      stopIdx: tClamped < 0.5 ? si : si + 1,
+    };
+  }
+  return { lat: stops[last].lat, lng: stops[last].lng, stopIdx: last };
+}
+function calcBusLatLngByTrip(trip, nowSec) {
+  const stops = currentRoute.stops;
+  const points = trip.map((t, idx) => ({idx, min: parseTimeToMin(t)})).filter(p => p.min !== null);
+  if (!points.length) return null;
+  const nowMin = nowSec / 60;
+  if (nowMin < points[0].min - 0.5 || nowMin > points[points.length-1].min + 0.5) return null;
+  for (const p of points) {
+    if (Math.abs(nowMin - p.min) <= 0.5) {
+      return {lat: stops[p.idx].lat, lng: stops[p.idx].lng, stopIdx: p.idx};
     }
-    function saveRides(v) { localStorage.setItem(STORAGE_RIDES, JSON.stringify(v)); }
-
-    function getFlags() {
-      try {
-        const raw = localStorage.getItem(STORAGE_FLAGS);
-        return raw ? JSON.parse(raw) : [];
-      } catch (e) {
-        return [];
-      }
-    }
-    function saveFlags(v) { localStorage.setItem(STORAGE_FLAGS, JSON.stringify(v)); }
-
-    function getIndex() {
-      const raw = localStorage.getItem(STORAGE_INDEX);
-      const idx = raw === null ? 0 : Number(raw);
-      if (Number.isNaN(idx) || idx < 0 || idx >= STOPS.length) return 0;
-      return idx;
-    }
-    function saveIndex(v) { localStorage.setItem(STORAGE_INDEX, String(v)); }
-
-    function pad(n) { return String(n).padStart(2, "0"); }
-    function formatDateTime(d) {
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-    function formatDateOnly(d) {
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    }
-    function todayString() { return formatDateOnly(new Date()); }
-
-    function prevStop() {
-      let idx = getIndex();
-      idx = (idx - 1 + STOPS.length) % STOPS.length;
-      saveIndex(idx);
-      render();
-    }
-    function nextStop() {
-      let idx = getIndex();
-      idx = (idx + 1) % STOPS.length;
-      saveIndex(idx);
-      render();
-    }
-
-    function addRide(type) {
-      const now = new Date();
-      const rides = getRides();
-      rides.unshift({
-        id: `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-        datetime: formatDateTime(now),
-        date: formatDateOnly(now),
-        stop: STOPS[getIndex()],
-        type
-      });
-      saveRides(rides);
-      render();
-    }
-
-    function addFlag(category) {
-      const now = new Date();
-      const flags = getFlags();
-      flags.unshift({
-        id: `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-        datetime: formatDateTime(now),
-        date: formatDateOnly(now),
-        category
-      });
-      saveFlags(flags);
-      render();
-    }
-
-    function undoLastRide() {
-      const rides = getRides();
-      if (!rides.length) return alert("취소할 승하차 기록이 없습니다.");
-      const removed = rides.shift();
-      saveRides(rides);
-      alert(`최근 승하차 1건 취소: ${removed.stop} / ${removed.type}`);
-      render();
-    }
-
-    function undoLastFlag() {
-      const flags = getFlags();
-      if (!flags.length) return alert("취소할 보조 집계 기록이 없습니다.");
-      const removed = flags.shift();
-      saveFlags(flags);
-      alert(`최근 보조 집계 1건 취소: ${removed.category}`);
-      render();
-    }
-
-    function getTodayRideTotals(rides) {
-      const today = todayString();
-      const todayRecords = rides.filter(r => r.date === today);
-      const board = todayRecords.filter(r => r.type === "승차").length;
-      const alight = todayRecords.filter(r => r.type === "하차").length;
-      return { board, alight, total: todayRecords.length };
-    }
-
-    function getTodayFlagTotals(flags) {
-      const today = todayString();
-      const t = flags.filter(r => r.date === today);
+  }
+  for (let i=0; i<points.length-1; i++) {
+    const a = points[i], b = points[i+1];
+    if (nowMin >= a.min + 0.5 && nowMin <= b.min - 0.5) {
+      const moveStart = a.min + 0.5;
+      const moveEnd = b.min - 0.5;
+      const t = (nowMin - moveStart) / Math.max(0.1, moveEnd - moveStart);
+      const tt = Math.max(0, Math.min(1, t));
       return {
-        pregnant: t.filter(r => r.category === "임산부").length,
-        disabled: t.filter(r => r.category === "장애인").length,
-        companion: t.filter(r => r.category === "동행인").length
+        lat: stops[a.idx].lat + (stops[b.idx].lat - stops[a.idx].lat) * tt,
+        lng: stops[a.idx].lng + (stops[b.idx].lng - stops[a.idx].lng) * tt,
+        stopIdx: tt < 0.5 ? a.idx : b.idx,
       };
     }
-
-    function render() {
-      const idx = getIndex();
-      const rides = getRides();
-      const flags = getFlags();
-      const rideTotals = getTodayRideTotals(rides);
-      const flagTotals = getTodayFlagTotals(flags);
-
-      document.getElementById("stopOrder").textContent = `${idx + 1} / ${STOPS.length} 정류장`;
-      document.getElementById("stopName").textContent = STOPS[idx];
-      document.getElementById("todayBoard").textContent = rideTotals.board;
-      document.getElementById("todayAlight").textContent = rideTotals.alight;
-      document.getElementById("todayTotal").textContent = rideTotals.total;
-      document.getElementById("todayPregnant").textContent = flagTotals.pregnant;
-      document.getElementById("todayDisabled").textContent = flagTotals.disabled;
-      document.getElementById("todayCompanion").textContent = flagTotals.companion;
-
-      const body = document.getElementById("historyBody");
-      if (!rides.length) {
-        body.innerHTML = `<tr><td colspan="3" class="empty">아직 승하차 기록이 없습니다.</td></tr>`;
-      } else {
-        body.innerHTML = rides.slice(0, 200).map(r => `
-          <tr>
-            <td>${r.datetime}</td>
-            <td>${r.stop}</td>
-            <td>${r.type}</td>
-          </tr>
-        `).join("");
-      }
-    }
-
-    function escapeCSV(value) {
-      const str = String(value ?? "");
-      return '"' + str.replace(/"/g, '""') + '"';
-    }
-
-    function makeCSV(rides, flags) {
-      const rideTotals = getTodayRideTotals(rides);
-      const flagTotals = getTodayFlagTotals(flags);
-
-      let csv = "\uFEFF";
-      csv += "전체요약\r\n";
-      csv += "항목,건수\r\n";
-      csv += `${escapeCSV("오늘 승차")},${rideTotals.board}\r\n`;
-      csv += `${escapeCSV("오늘 하차")},${rideTotals.alight}\r\n`;
-      csv += `${escapeCSV("오늘 총합")},${rideTotals.total}\r\n`;
-      csv += `${escapeCSV("오늘 임산부")},${flagTotals.pregnant}\r\n`;
-      csv += `${escapeCSV("오늘 장애인")},${flagTotals.disabled}\r\n`;
-      csv += `${escapeCSV("오늘 동행인")},${flagTotals.companion}\r\n\r\n`;
-
-      csv += "승하차기록\r\n";
-      csv += "일시,날짜,정류장명,구분\r\n";
-      rides.forEach(r => {
-        csv += `${escapeCSV(r.datetime)},${escapeCSV(r.date)},${escapeCSV(r.stop)},${escapeCSV(r.type)}\r\n`;
+  }
+  const nearest = points.reduce((best,p)=> Math.abs(nowMin-p.min) < Math.abs(nowMin-best.min) ? p : best, points[0]);
+  return {lat: stops[nearest.idx].lat, lng: stops[nearest.idx].lng, stopIdx: nearest.idx};
+}
+function getCurrentBusPosition() {
+  const nowMin = getNowSec() / 60;
+  const results = [];
+  if (Array.isArray(currentRoute.trips)) {
+    currentRoute.trips.forEach((trip, idx) => {
+      const pos = calcBusLatLngByTrip(trip, getNowSec());
+      if (!pos) return;
+      results.push({
+        busType: (currentRoute.tripLabels && currentRoute.tripLabels[idx]) || (results.length === 0 ? 'A' : 'B'),
+        stopIdx: pos.stopIdx,
+        stop: currentRoute.stops[pos.stopIdx],
+        nextStop: pos.stopIdx + 1 < currentRoute.stops.length ? currentRoute.stops[pos.stopIdx + 1] : null,
+        lat: pos.lat,
+        lng: pos.lng,
       });
-      csv += "\r\n";
+    });
+    return results.slice(0, 2);
+  }
+  const starts = getRouteStarts(currentRoute);
+  const offsets = currentRoute.stops.map(getStopOffset);
+  const lastStopMin = Math.max(...offsets);
+  starts.forEach((startMin) => {
+    const elapsedMin = nowMin - startMin;
+    if (elapsedMin < -0.5 || elapsedMin > lastStopMin + 0.5) return;
+    const pos = calcBusLatLng(elapsedMin);
+    results.push({
+      busType: results.length === 0 ? 'A' : 'B',
+      stopIdx: pos.stopIdx,
+      stop: currentRoute.stops[pos.stopIdx],
+      nextStop: pos.stopIdx + 1 < currentRoute.stops.length ? currentRoute.stops[pos.stopIdx + 1] : null,
+      lat: pos.lat,
+      lng: pos.lng,
+      elapsedMin,
+    });
+  });
+  return results.slice(0, 2);
+}
 
-      csv += "보조집계기록\r\n";
-      csv += "일시,날짜,구분\r\n";
-      flags.forEach(r => {
-        csv += `${escapeCSV(r.datetime)},${escapeCSV(r.date)},${escapeCSV(r.category)}\r\n`;
-      });
+function getCurrentTripIndex() {
+  const nowMin = getNowSec() / 60;
+  if (Array.isArray(currentRoute.trips)) {
+    const spans = currentRoute.trips.map((trip, idx) => {
+      const mins = trip.map(parseTimeToMin).filter(v => v !== null);
+      return mins.length ? {idx, start: Math.min(...mins), end: Math.max(...mins)} : null;
+    }).filter(Boolean);
+    const active = spans.find(sp => nowMin >= sp.start - 0.5 && nowMin <= sp.end + 0.5);
+    if (active) return active.idx;
+    const next = spans.find(sp => sp.start > nowMin);
+    return next ? next.idx : spans[spans.length - 1].idx;
+  }
+  return -1;
+}
+function getCurrentTripStartMin() {
+  if (Array.isArray(currentRoute.trips)) {
+    const idx = getCurrentTripIndex();
+    const mins = currentRoute.trips[idx].map(parseTimeToMin).filter(v => v !== null);
+    return mins.length ? Math.min(...mins) : 0;
+  }
+  const nowMin = getNowSec() / 60;
+  const starts = getRouteStarts(currentRoute).slice().sort((a,b)=>a-b);
+  const maxOffset = Math.max(...currentRoute.stops.map(getStopOffset));
+  const active = starts.find(st => nowMin >= st - 0.5 && nowMin <= st + maxOffset + 0.5);
+  if (active !== undefined) return active;
+  const next = starts.find(st => st > nowMin);
+  return next !== undefined ? next : starts[starts.length - 1];
+}
+function formatMinToTime(total) {
+  return minToLabel(total);
+}
 
-      return csv;
+function getTripSpans() {
+  if (!Array.isArray(currentRoute.trips)) return [];
+  return currentRoute.trips.map((trip, idx) => {
+    const mins = trip.map(parseTimeToMin).filter(v => v !== null);
+    if (!mins.length) return null;
+    return {
+      idx,
+      start: Math.min(...mins),
+      end: Math.max(...mins),
+      label: (currentRoute.tripLabels && currentRoute.tripLabels[idx]) || ''
+    };
+  }).filter(Boolean).sort((a,b) => a.start - b.start);
+}
+function getActiveTripIndexForDisplay(nowMin) {
+  const spans = getTripSpans();
+  if (!spans.length) return getCurrentTripIndex();
+  const active = spans.find(sp => nowMin >= sp.start - 0.5 && nowMin <= sp.end + 0.5);
+  if (active) return active.idx;
+  const next = spans.find(sp => sp.start > nowMin);
+  if (next) {
+    // 다음 회차 시작 1분 전부터 다음 회차 기준으로 표시
+    if (next.start - nowMin <= 1) return next.idx;
+    const prev = [...spans].reverse().find(sp => sp.start < nowMin);
+    return prev ? prev.idx : next.idx;
+  }
+  return spans[spans.length - 1].idx;
+}
+function getNextTripIndexAfter(baseIdx) {
+  const spans = getTripSpans();
+  const base = spans.find(sp => sp.idx === baseIdx);
+  if (!base) return -1;
+  const next = spans.find(sp => sp.start > base.start);
+  return next ? next.idx : -1;
+}
+function getDisplayedTripInfo(stopIdx) {
+  if (!Array.isArray(currentRoute.trips)) {
+    const start = getCurrentTripStartMin();
+    return { idx:-1, label:'', time: formatMinToTime(start + getStopOffset(currentRoute.stops[stopIdx])), sec: Math.round((start + getStopOffset(currentRoute.stops[stopIdx])) * 60) };
+  }
+  const nowSec = getNowSec();
+  const nowMin = nowSec / 60;
+  let baseIdx = getActiveTripIndexForDisplay(nowMin);
+  const nextIdx = getNextTripIndexAfter(baseIdx);
+  let useIdx = baseIdx;
+  if (nextIdx >= 0) {
+    const nextTrip = currentRoute.trips[nextIdx];
+    const nextMins = nextTrip.map(parseTimeToMin).filter(v => v !== null);
+    const nextStart = nextMins.length ? Math.min(...nextMins) : null;
+    const baseVal = currentRoute.trips[baseIdx] && currentRoute.trips[baseIdx][stopIdx];
+    const baseMin = parseTimeToMin(baseVal);
+    // 다음 회차 시작 1분 전부터, 이미 지나간 정류장만 다음 회차 시간으로 교체
+    if (nextStart !== null && nextStart - nowMin <= 1 && baseMin !== null && baseMin * 60 < nowSec - 30) {
+      const nextVal = currentRoute.trips[nextIdx] && currentRoute.trips[nextIdx][stopIdx];
+      if (parseTimeToMin(nextVal) !== null) useIdx = nextIdx;
     }
+  }
+  const val = currentRoute.trips[useIdx] && currentRoute.trips[useIdx][stopIdx];
+  const min = parseTimeToMin(val);
+  return {
+    idx: useIdx,
+    label: (currentRoute.tripLabels && currentRoute.tripLabels[useIdx]) || '',
+    time: min === null ? '-' : val,
+    sec: min === null ? null : Math.round(min * 60)
+  };
+}
 
-    function saveBlob(filename, text) {
-      const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+function getTripTime(stop, tripStartMin=getCurrentTripStartMin()) {
+  if (Array.isArray(currentRoute.trips)) {
+    const stopIdx = currentRoute.stops.indexOf(stop);
+    return getDisplayedTripInfo(stopIdx).time;
+  }
+  return formatMinToTime(tripStartMin + getStopOffset(stop));
+}
+function getTripSec(stop, tripStartMin=getCurrentTripStartMin()) {
+  if (Array.isArray(currentRoute.trips)) {
+    const stopIdx = currentRoute.stops.indexOf(stop);
+    return getDisplayedTripInfo(stopIdx).sec;
+  }
+  return Math.round((tripStartMin + getStopOffset(stop)) * 60);
+}
+
+function renderSelectedStopSchedule() {
+  const stop = currentRoute.stops[selectedStopIndex] || currentRoute.stops[0];
+  if (!stop) return;
+  document.getElementById('selectedStopTitle').textContent = stop.name + ' 시간표';
+  const times = getStopTimes(stop).map(t => {
+    const [h, m] = t.split(':').map(Number);
+    return { label: t, sec: h*3600 + m*60 };
+  }).sort((a,b) => a.sec - b.sec);
+  document.getElementById('selectedStopTimes').innerHTML = times.map(t => {
+    const cls = getTimeChipClass(t.sec, times);
+    return `<div class="schedule-chip ${cls === 'active' ? 'current' : cls === 'next' ? 'next' : ''}">${t.label}</div>`;
+  }).join('');
+}
+function selectStopSchedule(i, manual = false) {
+  if (!currentRoute.stops[i]) return;
+  selectedStopIndex = i;
+  if (manual) manualSelectedStop = true;
+  renderSelectedStopSchedule();
+}
+function openStopFromFlow(i) {
+  selectStopSchedule(i, true);
+}
+
+function renderStopsList(currentIdxA, currentIdxB) {
+  const el = document.getElementById('stopsList');
+  const now = getNowSec();
+  const tripStart = getCurrentTripStartMin();
+  const displayInfos = currentRoute.stops.map((stop, idx) => getDisplayedTripInfo(idx));
+  const tripSecs = displayInfos.map(info => info.sec);
+  const nextTripIdx = tripSecs.findIndex(sec => sec !== null && sec > now + 30);
+
+  const makeCell = (stop, i) => {
+    const displayInfo = displayInfos[i];
+    const sec = tripSecs[i];
+    // 현재 위치: 실제 버스가 해당 정류장에 있거나, 정류장 시간이 현재시각 ±30초인 경우
+    const isCurrent = (i === currentIdxA || i === currentIdxB || (sec !== null && Math.abs(sec - now) <= 30));
+    // 다음 위치: 현재 위치가 아닌 항목 중 현재시각 +30초 이후 가장 가까운 시간
+    const isNext = !isCurrent && i === nextTripIdx;
+    const itemClass = isCurrent ? 'current' : isNext ? 'trip-next' : '';
+    const busLabel = i === currentIdxA && i === currentIdxB ? '🚌🚌' :
+                     i === currentIdxA ? '🚌 A' :
+                     i === currentIdxB ? '🚌 B' : '';
+    return `
+      <div class="flow-cell">
+        <div class="stop-item ${itemClass}" onclick="openStopFromFlow(${i})">
+          <div class="stop-seq">${i+1}</div>
+          <div class="stop-content">
+            <div class="stop-name ${isCurrent ? 'current-name' : ''}">
+              ${stop.tag === '기점' ? '<span class="stop-tag">기점</span>' : ''}
+              ${formatPanelStopName(stop.name)}
+              ${busLabel ? '<span class="bus-label">' + busLabel + '</span>' : ''}
+            </div>
+            <div class="stop-time">${displayInfo.time}${displayInfo.label ? `<span class="trip-badge">${displayInfo.label}</span>` : ``}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const rowSize = 5;
+  const rows = [];
+  for (let r = 0; r < currentRoute.stops.length; r += rowSize) {
+    const rowNo = Math.floor(r / rowSize);
+    let indices = currentRoute.stops.slice(r, r + rowSize).map((_, offset) => r + offset);
+    const reverse = rowNo % 2 === 1;
+    if (reverse) indices = indices.reverse();
+    rows.push(`<div class="flow-row ${reverse ? 'reverse' : 'normal'} count-${indices.length} ${(currentRouteNo === 3 && indices.length === 1 && indices[0] === currentRoute.stops.length - 1) ? 'last-single-right' : ''}" style="--count:${indices.length}">${indices.map(i => makeCell(currentRoute.stops[i], i)).join('')}</div>`);
+  }
+  el.innerHTML = rows.join('');
+  renderSelectedStopSchedule();
+}
+function updateBusPosition() {
+  const service = isServiceTime();
+  document.getElementById('noServiceBar').style.display = service ? 'none' : 'block';
+  document.getElementById('statusDot').style.background = service ? '#22c55e' : '#f59e0b';
+  if (!service) {
+    document.getElementById('busName').textContent = '운행 대기중';
+    document.getElementById('busPos').textContent = '현재 운행 시간이 아닙니다';
+    document.getElementById('busNext').textContent = '평일 09:00 ~ 17:30 (점심 제외)';
+    if (busMarkerA) { map.removeLayer(busMarkerA); busMarkerA = null; }
+    if (busMarkerB) { map.removeLayer(busMarkerB); busMarkerB = null; }
+    renderStops(-1);
+    renderStopsList(-1, -1);
+    return;
+  }
+  const positions = getCurrentBusPosition();
+  let idxA = -1, idxB = -1;
+  positions.forEach(p => {
+    if (p.busType === 'A') idxA = p.stopIdx;
+    if (p.busType === 'B') idxB = p.stopIdx;
+  });
+  positions.forEach(p => {
+    const lat = p.lat, lng = p.lng;
+    if (p.busType === 'A') {
+      if (!busMarkerA) busMarkerA = L.marker([lat, lng], { icon: createBusIcon('A'), zIndexOffset: 1000 }).addTo(map);
+      else busMarkerA.setLatLng([lat, lng]);
+    } else {
+      if (!busMarkerB) busMarkerB = L.marker([lat, lng], { icon: createBusIcon('B'), zIndexOffset: 999 }).addTo(map);
+      else busMarkerB.setLatLng([lat, lng]);
     }
+  });
+  if (!positions.find(p => p.busType === 'A') && busMarkerA) {
+    map.removeLayer(busMarkerA); busMarkerA = null;
+  }
+  if (!positions.find(p => p.busType === 'B') && busMarkerB) {
+    map.removeLayer(busMarkerB); busMarkerB = null;
+  }
+  const primaryPos = positions[0];
+  if (primaryPos) {
+    document.getElementById('busName').textContent = `🚌 ${primaryPos.stop.name}`;
+    document.getElementById('busPos').textContent = `${positions.length}대 운행 중`;
+    document.getElementById('busNext').textContent = primaryPos.nextStop
+      ? `다음: ${primaryPos.nextStop.name}`
+      : '종점 도착';
+  } else {
+    document.getElementById('busName').textContent = '운행 대기중';
+    document.getElementById('busPos').textContent = '다음 출발 대기중';
+    document.getElementById('busNext').textContent = '';
+  }
+  renderStops(idxA, idxB);
+  const nowForSchedule = getNowSec();
+  const tripStartForSchedule = getCurrentTripStartMin();
+  const tripSecsForSchedule = currentRoute.stops.map(stop => getTripSec(stop, tripStartForSchedule));
+  const nextIdxForSchedule = tripSecsForSchedule.findIndex(sec => sec !== null && sec > nowForSchedule + 30);
+  if (!manualSelectedStop) {
+    selectedStopIndex = idxA >= 0 ? idxA : (idxB >= 0 ? idxB : (nextIdxForSchedule >= 0 ? nextIdxForSchedule : 0));
+  }
+  renderStopsList(idxA, idxB);
+}
+function openStopModal(stop, idx) {
+  selectStopSchedule(idx, true);
+  if (stop && typeof map !== 'undefined') map.panTo([stop.lat, stop.lng]);
+}
+function closeModal() {
+  document.getElementById('stopModal').style.display = 'none';
+  document.getElementById('modalOverlay').style.display = 'none';
+}
+function selectRoute(num, el) {
+  currentRouteNo = num;
+  currentRoute = ROUTES[num];
+  selectedStopIndex = 0;
+  manualSelectedStop = false;
+  shouldFitRoute = true;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  setTheme(currentRoute);
+  if (busMarkerA) { map.removeLayer(busMarkerA); busMarkerA = null; }
+  if (busMarkerB) { map.removeLayer(busMarkerB); busMarkerB = null; }
+  updateBusPosition();
+}
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+  const days = ['일','월','화','수','목','금','토'];
+  const d = now;
+  document.getElementById('datestr').textContent =
+    `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} (${days[d.getDay()]})`;
+}
 
-    function downloadCSV() {
-      saveBlob("복지카1호_UI개선_전체기록.csv", makeCSV(getRides(), getFlags()));
+
+/* === FINAL PATCH: make route cards and timetable use one shared active/next state === */
+let __flowCurrentSet = new Set();
+let __flowNextSet = new Set();
+let __flowNextIndex = -1;
+let __lastDisplayInfos = [];
+
+function __getNextStopIndexFromCurrent(idx){
+  return (Number.isInteger(idx) && idx >= 0 && idx + 1 < currentRoute.stops.length) ? idx + 1 : -1;
+}
+
+function __calcFlowState(currentIdxA, currentIdxB){
+  const now = getNowSec();
+  const infos = currentRoute.stops.map((stop, idx) => getDisplayedTripInfo(idx));
+  const secs = infos.map(info => info.sec);
+  const currentSet = new Set();
+  [currentIdxA, currentIdxB].forEach(i => { if (Number.isInteger(i) && i >= 0) currentSet.add(i); });
+  secs.forEach((sec, i) => { if (sec !== null && Math.abs(sec - now) <= 30) currentSet.add(i); });
+
+  // A/B가 동시에 운행 중이면 각 버스의 다음 정류장을 모두 외곽선 처리한다.
+  const nextSet = new Set();
+  [__getNextStopIndexFromCurrent(currentIdxA), __getNextStopIndexFromCurrent(currentIdxB)]
+    .forEach(i => { if (i >= 0 && !currentSet.has(i)) nextSet.add(i); });
+
+  // 버스가 정류장에 정확히 잡히지 않는 순간에도 다음 예정 정류장 1개는 유지한다.
+  if (!nextSet.size) {
+    const future = secs.map((sec, i) => ({sec, i}))
+      .filter(x => x.sec !== null && x.sec > now + 30 && !currentSet.has(x.i))
+      .sort((a,b) => a.sec - b.sec);
+    if (future.length) nextSet.add(future[0].i);
+  }
+
+  __flowCurrentSet = currentSet;
+  __flowNextSet = nextSet;
+  __flowNextIndex = [...nextSet].sort((a,b) => (secs[a] ?? Infinity) - (secs[b] ?? Infinity))[0] ?? -1;
+  __lastDisplayInfos = infos;
+  return {infos, secs, currentSet, nextSet, nextIdx: __flowNextIndex, now};
+}
+
+function renderSelectedStopSchedule() {
+  const stop = currentRoute.stops[selectedStopIndex] || currentRoute.stops[0];
+  if (!stop) return;
+  document.getElementById('selectedStopTitle').textContent = stop.name + ' 시간표';
+  const times = getStopTimes(stop).map(t => {
+    const [h, m] = t.split(':').map(Number);
+    return { label: t, sec: h*3600 + m*60 };
+  }).sort((a,b) => a.sec - b.sec);
+  const displayInfo = __lastDisplayInfos[selectedStopIndex] || getDisplayedTripInfo(selectedStopIndex);
+  const selectedIsCurrent = __flowCurrentSet.has(selectedStopIndex);
+  const selectedIsNext = __flowNextSet.has(selectedStopIndex);
+  const now = getNowSec();
+  document.getElementById('selectedStopTimes').innerHTML = times.map(t => {
+    let cls = '';
+    if (displayInfo && t.label === displayInfo.time && selectedIsCurrent) cls = 'current';
+    else if (displayInfo && t.label === displayInfo.time && selectedIsNext) cls = 'next';
+    else if (Math.abs(t.sec - now) <= 30) cls = 'current';
+    else if (!selectedIsCurrent && !selectedIsNext) {
+      const nt = times.find(x => x.sec > now + 30);
+      if (nt && nt.label === t.label) cls = 'next';
     }
+    return `<div class="schedule-chip ${cls}">${t.label}</div>`;
+  }).join('');
+}
 
-    function downloadTodayCSV() {
-      const today = todayString();
-      const rides = getRides().filter(r => r.date === today);
-      const flags = getFlags().filter(r => r.date === today);
-      saveBlob(`복지카1호_UI개선_오늘기록_${today}.csv`, makeCSV(rides, flags));
-    }
+function renderStopsList(currentIdxA, currentIdxB) {
+  const el = document.getElementById('stopsList');
+  const state = __calcFlowState(currentIdxA, currentIdxB);
+  const makeCell = (stop, i) => {
+    const displayInfo = state.infos[i];
+    const isCurrent = state.currentSet.has(i);
+    const isNext = !isCurrent && state.nextSet.has(i);
+    const itemClass = isCurrent ? 'current' : isNext ? 'trip-next' : '';
+    const busLabel = i === currentIdxA && i === currentIdxB ? '🚌🚌' :
+                     i === currentIdxA ? '🚌 A' :
+                     i === currentIdxB ? '🚌 B' : '';
+    return `
+      <div class="flow-cell">
+        <div class="stop-item ${itemClass}" onclick="openStopFromFlow(${i})">
+          <div class="stop-seq">${i+1}</div>
+          <div class="stop-content">
+            <div class="stop-name ${isCurrent ? 'current-name' : ''}">
+              ${stop.tag === '기점' ? '<span class="stop-tag">기점</span>' : ''}
+              ${formatPanelStopName(stop.name)}
+              ${busLabel ? '<span class="bus-label">' + busLabel + '</span>' : ''}
+            </div>
+            <div class="stop-time">${displayInfo.time}${displayInfo.label ? `<span class="trip-badge">${displayInfo.label}</span>` : ``}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+  const rowSize = 5;
+  const rows = [];
+  for (let r = 0; r < currentRoute.stops.length; r += rowSize) {
+    const rowNo = Math.floor(r / rowSize);
+    let indices = currentRoute.stops.slice(r, r + rowSize).map((_, offset) => r + offset);
+    const reverse = rowNo % 2 === 1;
+    if (reverse) indices = indices.reverse();
+    rows.push(`<div class="flow-row ${reverse ? 'reverse' : 'normal'} count-${indices.length} ${(currentRouteNo === 3 && indices.length === 1 && indices[0] === currentRoute.stops.length - 1) ? 'last-single-right' : ''}" style="--count:${indices.length}">${indices.map(i => makeCell(currentRoute.stops[i], i)).join('')}</div>`);
+  }
+  el.innerHTML = rows.join('');
+  renderSelectedStopSchedule();
+}
 
-    function resetToday() {
-      if (!confirm("오늘 기록만 초기화할까요?")) return;
-      const today = todayString();
-      saveRides(getRides().filter(r => r.date !== today));
-      saveFlags(getFlags().filter(r => r.date !== today));
-      render();
-    }
-
-    function resetAll() {
-      if (!confirm("전체 기록을 초기화할까요?")) return;
-      localStorage.removeItem(STORAGE_RIDES);
-      localStorage.removeItem(STORAGE_FLAGS);
-      render();
-    }
-
-    render();
-  </script>
+setTheme(currentRoute);
+renderStops(-1);
+renderStopsList(-1, -1);
+renderSelectedStopSchedule();
+updateBusPosition();
+updateClock();
+setInterval(() => {
+  updateBusPosition();
+}, 1000); // 1초마다 갱신 (부드러운 보간 이동)
+setInterval(updateClock, 1000); // 시계는 1초마다
+</script>
 </body>
 </html>
