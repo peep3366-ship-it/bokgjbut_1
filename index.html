@@ -362,7 +362,7 @@
   .stop-label-text {
     margin-top: 3px;
     background: white;
-    border: 1.5px solid #e84393;
+    border: 1.5px solid #d1d5db;
     border-radius: 5px;
     padding: 2px 5px;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -376,7 +376,7 @@
     text-overflow: ellipsis;
     max-width: 82px;
     word-break: keep-all;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.13);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.10);
     pointer-events: none;
   }
   .stop-label-text.current {
@@ -385,8 +385,7 @@
     border-color: #e84393;
   }
   .stop-label-text.start {
-    border-color: #3b82f6;
-    color: #3b82f6;
+    /* 기점도 기본 스타일과 동일 */
   }
   .stop-label-wrap {
     position: relative;
@@ -543,8 +542,8 @@ header{display:none;}
 .bus-ab{position:absolute; top:-25px; left:50%; transform:translateX(-50%); width:28px; height:28px; border-radius:50%; background:#fff; border:2px solid var(--pink); color:var(--pink); font-size:16px; font-weight:900; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.15);}
 .bus-emoji{line-height:1;}
 .stop-label-dot.current{background:var(--pink)!important; border-color:var(--pink)!important; box-shadow:0 0 0 4px var(--pink-bg)!important;}
+.stop-label-text{border-color:#d1d5db!important;}
 .stop-label-text.current{background:var(--pink)!important; border-color:var(--pink)!important; color:#fff!important;}
-.stop-label-text{border-color:var(--pink)!important;}
 .map-popup{border-color:var(--pink-bg)!important; box-shadow:0 10px 28px var(--pink-bg), 0 2px 8px rgba(0,0,0,.10)!important;}
 .mp-chip.active{background:var(--pink)!important; color:#fff!important;}
 .mp-chip.next{border-color:var(--pink)!important; color:var(--pink)!important;}
