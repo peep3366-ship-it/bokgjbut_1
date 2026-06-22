@@ -911,8 +911,22 @@ header{display:none;}
   position: relative;
   flex-shrink: 0;
   z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.welfarecar-logo {
+  display: flex; align-items: center; gap: 7px;
+  flex-shrink: 0; text-decoration: none;
+}
+.welfarecar-logo svg { width: 32px; height: 32px; flex-shrink: 0; }
+.welfarecar-logo-text {
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 700; font-size: 16px; color: #1a1a2e;
+  white-space: nowrap; letter-spacing: -0.3px; line-height: 1;
 }
 .search-bar-inner {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1014,6 +1028,14 @@ header{display:none;}
   </div>
 </header>
 <div class="search-bar-wrap" id="searchBarWrap">
+  <div class="welfarecar-logo">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="6" width="11" height="28" rx="3" fill="#5BB8F5"/>
+      <rect x="15" y="2" width="11" height="36" rx="3" fill="#F05A22"/>
+      <rect x="28" y="8" width="10" height="24" rx="3" fill="#F4A300"/>
+    </svg>
+    <div class="welfarecar-logo-text">복지카<span style="color:inherit">지도</span></div>
+  </div>
   <div class="search-bar-inner">
     <span class="search-icon">🔍</span>
     <input type="text" id="stopSearchInput" placeholder="정류장 검색 (예: 상도역, 보건소)" autocomplete="off">
