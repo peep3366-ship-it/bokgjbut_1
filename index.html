@@ -903,6 +903,103 @@ header{display:none;}
   max-width:82px !important;
 }
 
+
+/* ===== 정류장 검색 바 ===== */
+.search-bar-wrap {
+  background: #fff;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 1100;
+}
+.search-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f6f7f9;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0 12px;
+  transition: border-color .15s;
+}
+.search-bar-inner:focus-within {
+  border-color: var(--pink);
+  background: #fff;
+}
+.search-icon { font-size: 15px; color: var(--gray); flex-shrink: 0; }
+#stopSearchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dark);
+  padding: 9px 0;
+  font-family: inherit;
+}
+#stopSearchInput::placeholder { color: #adb5bd; font-weight: 400; }
+.search-clear {
+  background: none; border: none; cursor: pointer;
+  color: #adb5bd; font-size: 16px; padding: 2px;
+  display: none; line-height: 1;
+}
+.search-clear.visible { display: block; }
+
+/* 드롭다운 */
+.search-results {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 14px; right: 14px;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.13);
+  z-index: 2000;
+  overflow: hidden;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.search-results.open { display: block; }
+.search-results::-webkit-scrollbar { width: 4px; }
+.search-results::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 2px; }
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  padding: 11px 14px;
+  cursor: pointer;
+  gap: 10px;
+  border-bottom: 1px solid #f5f5f7;
+  transition: background .1s;
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--pink-bg); }
+
+.sri-icon { font-size: 15px; flex-shrink: 0; }
+.sri-name {
+  flex: 1;
+  font-size: 13px; font-weight: 700; color: var(--dark);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sri-name em { color: var(--pink); font-style: normal; }
+.sri-route-badges { display: flex; gap: 4px; flex-shrink: 0; }
+.sri-badge {
+  font-size: 10px; font-weight: 800;
+  padding: 2px 7px; border-radius: 999px;
+  color: #fff; letter-spacing: -0.3px;
+}
+.sri-badge.r1 { background: #e84393; }
+.sri-badge.r2 { background: #f97335; }
+.sri-badge.r3 { background: #00a85a; }
+.sri-badge.r4 { background: #7b6fbd; }
+.search-no-result {
+  padding: 18px 14px; text-align: center;
+  font-size: 13px; color: var(--gray);
+}
+
 </style>
 </head>
 <body>
@@ -917,6 +1014,14 @@ header{display:none;}
     <div class="date" id="datestr"></div>
   </div>
 </header>
+<div class="search-bar-wrap" id="searchBarWrap">
+  <div class="search-bar-inner">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="stopSearchInput" placeholder="정류장 검색 (예: 상도역, 보건소)" autocomplete="off">
+    <button class="search-clear" id="searchClearBtn" title="지우기">✕</button>
+  </div>
+  <div class="search-results" id="searchResults"></div>
+</div>
 <div class="tab-bar">
   <div class="tab active" onclick="selectRoute(1, this)">1호차 <span class="badge" style="background:#e84393">운행중</span></div>
   <div class="tab" onclick="selectRoute(2, this)">2호차 <span class="badge" style="background:#f97335">운행중</span></div>
@@ -1628,6 +1733,146 @@ setInterval(() => {
   updateBusPosition();
 }, 1000); // 1초마다 갱신 (부드러운 보간 이동)
 setInterval(updateClock, 1000); // 시계는 1초마다
+
+/* ===== 정류장 검색 기능 ===== */
+(function() {
+  const ROUTE_COLORS = {1:'#e84393', 2:'#f97335', 3:'#00a85a', 4:'#7b6fbd'};
+  const ROUTE_LABELS = {1:'1호차', 2:'2호차', 3:'3호차', 4:'4호차'};
+
+  const input   = document.getElementById('stopSearchInput');
+  const results = document.getElementById('searchResults');
+  const clearBtn = document.getElementById('searchClearBtn');
+
+  if (!input) return;
+
+  // 전체 정류장 목록 생성: { name, routeNos[] }
+  function buildStopIndex() {
+    const map = {};
+    for (let rno = 1; rno <= 4; rno++) {
+      const route = (typeof ROUTES !== 'undefined') ? ROUTES[rno] : null;
+      if (!route || !route.stops) continue;
+      route.stops.forEach(s => {
+        const key = s.name.trim();
+        if (!map[key]) map[key] = { name: key, routeNos: [] };
+        if (!map[key].routeNos.includes(rno)) map[key].routeNos.push(rno);
+      });
+    }
+    return Object.values(map);
+  }
+
+  // 검색어 하이라이트
+  function highlight(text, query) {
+    if (!query) return text;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(`(${escaped})`, 'gi'), '<em>$1</em>');
+  }
+
+  function renderResults(query) {
+    if (!query || query.length < 1) {
+      results.classList.remove('open');
+      return;
+    }
+    const stops = buildStopIndex();
+    const q = query.trim().toLowerCase();
+    const matched = stops.filter(s => s.name.toLowerCase().includes(q));
+
+    if (matched.length === 0) {
+      results.innerHTML = `<div class="search-no-result">🔍 일치하는 정류장이 없어요</div>`;
+    } else {
+      results.innerHTML = matched.slice(0, 30).map(s => {
+        const badges = s.routeNos.map(r =>
+          `<span class="sri-badge r${r}" data-route="${r}">${ROUTE_LABELS[r]}</span>`
+        ).join('');
+        return `<div class="search-result-item" data-name="${s.name}" data-routes="${s.routeNos.join(',')}">
+          <span class="sri-route-badges">${badges}</span>
+          <span class="sri-name">${highlight(s.name, query)}</span>
+          <span class="sri-icon">📍</span>
+        </div>`;
+      }).join('');
+    }
+    results.classList.add('open');
+
+    // 배지 클릭 → 해당 호차로 이동 (이벤트 위임)
+    results.querySelectorAll('.sri-badge').forEach(badge => {
+      badge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const rno = parseInt(badge.dataset.route);
+        const stopName = badge.closest('.search-result-item').dataset.name;
+        goToRouteStop(rno, stopName);
+      });
+    });
+
+    // 행 전체 클릭 → 첫번째 호차로 이동
+    results.querySelectorAll('.search-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const routes = item.dataset.routes.split(',').map(Number);
+        const stopName = item.dataset.name;
+        goToRouteStop(routes[0], stopName);
+      });
+    });
+  }
+
+  function goToRouteStop(rno, stopName) {
+    // 탭 전환
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach((t, i) => {
+      t.classList.toggle('active', i === rno - 1);
+    });
+    if (typeof selectRoute === 'function') {
+      selectRoute(rno, tabs[rno - 1]);
+    }
+
+    // 해당 정류장 스크롤 포커스 (약간 딜레이 후)
+    setTimeout(() => {
+      const route = (typeof ROUTES !== 'undefined') ? ROUTES[rno] : null;
+      if (!route) return;
+      const idx = route.stops.findIndex(s => s.name === stopName);
+      if (idx < 0) return;
+
+      // flow-cell 찾아서 스크롤
+      const cells = document.querySelectorAll('.flow-cell');
+      if (cells[idx]) {
+        cells[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 잠깐 하이라이트
+        const item = cells[idx].querySelector('.stop-item');
+        if (item) {
+          item.style.transition = 'box-shadow .3s';
+          item.style.boxShadow = '0 0 0 3px #e84393';
+          setTimeout(() => { item.style.boxShadow = ''; }, 1200);
+        }
+      }
+    }, 280);
+
+    // 검색창 닫기
+    closeSearch();
+  }
+
+  function closeSearch() {
+    results.classList.remove('open');
+    input.value = '';
+    clearBtn.classList.remove('visible');
+  }
+
+  input.addEventListener('input', () => {
+    const v = input.value;
+    clearBtn.classList.toggle('visible', v.length > 0);
+    renderResults(v);
+  });
+
+  clearBtn.addEventListener('click', closeSearch);
+
+  // 바깥 클릭 시 닫기
+  document.addEventListener('click', (e) => {
+    if (!document.getElementById('searchBarWrap').contains(e.target)) {
+      results.classList.remove('open');
+    }
+  });
+
+  input.addEventListener('focus', () => {
+    if (input.value.length > 0) results.classList.add('open');
+  });
+})();
+
 </script>
 </body>
 </html>
