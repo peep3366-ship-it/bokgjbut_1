@@ -85,6 +85,14 @@
     color: var(--pink);
     border-bottom-color: var(--pink);
   }
+  .tab-area {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--gray);
+    margin: 0 4px;
+    opacity: 0.8;
+  }
+  .tab.active .tab-area { color: var(--pink); opacity: 0.7; }
   .tab .badge {
     display: inline-block;
     background: var(--pink);
@@ -1044,10 +1052,10 @@ header{display:none;}
   <div class="search-results" id="searchResults"></div>
 </div>
 <div class="tab-bar">
-  <div class="tab active" onclick="selectRoute(1, this)">1호차 <span class="badge" style="background:#e84393">운행중</span></div>
-  <div class="tab" onclick="selectRoute(2, this)">2호차 <span class="badge" style="background:#f97335">운행중</span></div>
-  <div class="tab" onclick="selectRoute(3, this)">3호차 <span class="badge" style="background:#00a85a">운행중</span></div>
-  <div class="tab" onclick="selectRoute(4, this)">4호차 <span class="badge" style="background:#7b6fbd">운행중</span></div>
+  <div class="tab active" onclick="selectRoute(1, this)">1호차 <span class="tab-area">상도1·2·4동</span><span class="badge" style="background:#e84393">운행중</span></div>
+  <div class="tab" onclick="selectRoute(2, this)">2호차 <span class="tab-area">사당2·3동</span><span class="badge" style="background:#f97335">운행중</span></div>
+  <div class="tab" onclick="selectRoute(3, this)">3호차 <span class="tab-area">사당1·4·5동</span><span class="badge" style="background:#00a85a">운행중</span></div>
+  <div class="tab" onclick="selectRoute(4, this)">4호차 <span class="tab-area">흑석동·노량진1동</span><span class="badge" style="background:#7b6fbd">운행중</span></div>
 </div>
 <div class="no-service" id="noServiceBar">
   ⚠️ 현재 운행 시간이 아닙니다 (운행: 09:00~17:30, 점심 12:00~13:00 제외 / 토·일·공휴일 미운행)
