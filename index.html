@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>동작복지카 실시간 위치</title>
-<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=edd8f53cc651a8a01b6eea15e336dd7c"></script>
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=edd8f53cc651a8a01b6eea15e336dd7c&autoload=false"></script>
 <style>
   :root {
     --pink: #e84393;
@@ -1159,6 +1159,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+kakao.maps.load(function() {
 // ── 카카오맵 초기화 ──
 const kakaoMap = new kakao.maps.Map(document.getElementById('map'), {
   center: new kakao.maps.LatLng(37.5005, 126.948),
@@ -1267,7 +1268,7 @@ function renderStops(currentIdx, currentIdxB) {
     kakaoMap.setBounds(bounds, 35, 35, 35, 35);
     shouldFitRoute = false;
   }
-}
+} // end renderStops
 function getNowSec() {
   const n = new Date();
   return n.getHours() * 3600 + n.getMinutes() * 60 + n.getSeconds();
@@ -1926,6 +1927,7 @@ setInterval(updateClock, 1000); // 시계는 1초마다
   });
 })();
 
+}); // kakao.maps.load
 </script>
 </body>
 </html>
