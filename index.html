@@ -4,8 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>동작복지카 실시간 위치</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=edd8f53cc651a8a01b6eea15e336dd7c"></script>
 <style>
   :root {
     --pink: #e84393;
@@ -545,7 +544,7 @@ header{display:none;}
 .bus-label{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; margin-left:4px; border-radius:999px; background:var(--pink); color:#fff; font-size:11px; padding:0 5px;}
 .info-bar{background:#fff; color:#444; border-top:1px solid #eee; font-size:12px; padding:10px 22px; justify-content:center; flex-wrap:wrap;}
 .no-service{position:absolute; top:54px; left:46%; right:0; z-index:20;}
-.leaflet-control-zoom{box-shadow:0 8px 20px rgba(0,0,0,.1)!important; border:0!important;}
+
 .bus-marker{position:relative; width:40px; height:40px; border-radius:50%; border:3px solid #fff; background:var(--pink); box-shadow:0 6px 18px var(--pink-bg), 0 2px 8px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center; font-size:20px;}
 .bus-ab{position:absolute; top:-25px; left:50%; transform:translateX(-50%); width:28px; height:28px; border-radius:50%; background:#fff; border:2px solid var(--pink); color:var(--pink); font-size:16px; font-weight:900; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.15);}
 .bus-emoji{line-height:1;}
@@ -1160,22 +1159,21 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-const map = L.map('map', {
-  center: [37.5005, 126.948],
-  zoom: 15,
-  zoomControl: false,
+// ── 카카오맵 초기화 ──
+const kakaoMap = new kakao.maps.Map(document.getElementById('map'), {
+  center: new kakao.maps.LatLng(37.5005, 126.948),
+  level: 4,
 });
-L.control.zoom({ position: 'bottomright' }).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '© OpenStreetMap © Carto',
-  maxZoom: 19,
-}).addTo(map);
+// 줌 컨트롤
+const zoomControl = new kakao.maps.ZoomControl();
+kakaoMap.addControl(zoomControl, kakao.maps.ControlPosition.BOTTOMRIGHT);
+
 let stopMarkers = [];
 let busMarkerA = null, busMarkerB = null;
 let routeLine = null;
-let shouldFitRoute = true; // 최초 진입/호차 변경 때만 전체 노선 맞춤
+let shouldFitRoute = true;
+
 function formatLabel(name) {
-  // 지도/정류장 라벨: 한 줄 최대 8글자, 초과 시 ... 처리
   const clean = String(name || '').trim().replace(/\s+/g, '');
   return clean.length > 8 ? clean.slice(0, 8) + '...' : clean;
 }
@@ -1183,10 +1181,12 @@ function formatPanelStopName(name) {
   const clean = String(name || '').trim();
   return clean.length > 8 ? clean.slice(0, 8) + '...' : clean;
 }
-function createStopIcon(isCurrent, stop, isStart) {
+
+// 정류장 커스텀 오버레이 HTML 생성
+function createStopOverlayContent(isCurrent, stop, isStart) {
   const label   = formatLabel(stop.name);
   const dotCls  = isCurrent ? 'current' : '';
-  const textCls = isCurrent ? 'current' : isStart ? 'start' : '';
+  const textCls = isCurrent ? 'current' : '';
   const times = getStopTimes(stop).map(t => {
     const [h, m] = t.split(':').map(Number);
     return { label: t, sec: h*3600 + m*60 };
@@ -1197,8 +1197,7 @@ function createStopIcon(isCurrent, stop, isStart) {
     const cls = getTimeChipClass(c.sec, times);
     return `<span class="mp-chip ${cls}">${c.label}</span>`;
   }).join('')}${row.length === 1 ? '<span class="mp-chip-empty"></span>' : ''}</div>`).join('');
-  return L.divIcon({
-    html: `<div class="stop-label-wrap">
+  return `<div class="stop-label-wrap">
              <div class="stop-label-dot ${dotCls}"></div>
              <div class="stop-label-text ${textCls}">${label}</div>
              <div class="map-popup">
@@ -1207,44 +1206,65 @@ function createStopIcon(isCurrent, stop, isStart) {
                  <div class="mp-times">${timeRows}</div>
                </div>
              </div>
-           </div>`,
-    className: '',
-    iconSize: [64, 48],
-    iconAnchor: [32, 7],
-  });
+           </div>`;
 }
-function createBusIcon(label) {
-  return L.divIcon({
-    html: `<div class="bus-marker"><span class="bus-ab">${label}</span><span class="bus-emoji">🚌</span></div>`,
-    className: '',
-    iconSize: [42, 50],
-    iconAnchor: [21, 34],
-  });
+
+function createBusOverlayContent(label) {
+  return `<div class="bus-marker"><span class="bus-ab">${label}</span><span class="bus-emoji">🚌</span></div>`;
 }
+
 function renderStops(currentIdx, currentIdxB) {
-  stopMarkers.forEach(m => map.removeLayer(m));
+  // 기존 마커 제거
+  stopMarkers.forEach(m => m.setMap(null));
   stopMarkers = [];
   const activeSet = new Set();
   [currentIdx, currentIdxB].forEach(i => { if (Number.isInteger(i) && i >= 0) activeSet.add(i); });
+
   currentRoute.stops.forEach((stop, i) => {
     const isActiveStop = activeSet.has(i);
-    const marker = L.marker([stop.lat, stop.lng], {
-      icon: createStopIcon(isActiveStop, stop, stop.tag === '기점'),
-      zIndexOffset: isActiveStop ? 500 : 0,
-    }).addTo(map);
-    marker.on('click', () => { selectStopSchedule(i, true); map.panTo([stop.lat, stop.lng]); });
-    stopMarkers.push(marker);
+    const pos = new kakao.maps.LatLng(stop.lat, stop.lng);
+    const content = createStopOverlayContent(isActiveStop, stop, stop.tag === '기점');
+    const overlay = new kakao.maps.CustomOverlay({
+      position: pos,
+      content: content,
+      yAnchor: 0.15,
+      zIndex: isActiveStop ? 5 : 2,
+    });
+    overlay.setMap(kakaoMap);
+    // 클릭 이벤트는 content DOM에 직접 등록 (CustomOverlay는 이벤트를 HTML로 처리)
+    overlay.__stopIdx = i;
+    stopMarkers.push(overlay);
   });
-  if (routeLine) map.removeLayer(routeLine);
-  const latlngs = currentRoute.stops.map(s => [s.lat, s.lng]);
-  routeLine = L.polyline(latlngs, {
-    color: currentRoute.color,
-    weight: 3,
-    opacity: 0.65,
-    dashArray: '6 4',
-  }).addTo(map);
-  if (shouldFitRoute && latlngs.length) {
-    map.fitBounds(latlngs, { padding: [35, 35] });
+
+  // 클릭 이벤트 등록 (DOM 렌더 후)
+  setTimeout(() => {
+    stopMarkers.forEach((overlay, i) => {
+      const el = overlay.getContent();
+      if (typeof el === 'string') return;
+      el.addEventListener('click', () => {
+        selectStopSchedule(i, true);
+        kakaoMap.panTo(new kakao.maps.LatLng(currentRoute.stops[i].lat, currentRoute.stops[i].lng));
+      });
+    });
+  }, 100);
+
+  // 노선선 (Polyline)
+  if (routeLine) routeLine.setMap(null);
+  const path = currentRoute.stops.map(s => new kakao.maps.LatLng(s.lat, s.lng));
+  routeLine = new kakao.maps.Polyline({
+    path,
+    strokeWeight: 3,
+    strokeColor: currentRoute.color,
+    strokeOpacity: 0.65,
+    strokeStyle: 'shortdot',
+  });
+  routeLine.setMap(kakaoMap);
+
+  // 최초/호차 변경 시 전체 노선 맞춤
+  if (shouldFitRoute && path.length) {
+    const bounds = new kakao.maps.LatLngBounds();
+    path.forEach(p => bounds.extend(p));
+    kakaoMap.setBounds(bounds, 35, 35, 35, 35);
     shouldFitRoute = false;
   }
 }
@@ -1565,8 +1585,8 @@ function updateBusPosition() {
     document.getElementById('busName').textContent = '운행 대기중';
     document.getElementById('busPos').textContent = '현재 운행 시간이 아닙니다';
     document.getElementById('busNext').textContent = '평일 09:00 ~ 17:30 (점심 제외)';
-    if (busMarkerA) { map.removeLayer(busMarkerA); busMarkerA = null; }
-    if (busMarkerB) { map.removeLayer(busMarkerB); busMarkerB = null; }
+    if (busMarkerA) { busMarkerA.setMap(null); busMarkerA = null; }
+    if (busMarkerB) { busMarkerB.setMap(null); busMarkerB = null; }
     renderStops(-1);
     renderStopsList(-1, -1);
     return;
@@ -1578,20 +1598,24 @@ function updateBusPosition() {
     if (p.busType === 'B') idxB = p.stopIdx;
   });
   positions.forEach(p => {
-    const lat = p.lat, lng = p.lng;
+    const pos = new kakao.maps.LatLng(p.lat, p.lng);
     if (p.busType === 'A') {
-      if (!busMarkerA) busMarkerA = L.marker([lat, lng], { icon: createBusIcon('A'), zIndexOffset: 1000 }).addTo(map);
-      else busMarkerA.setLatLng([lat, lng]);
+      if (!busMarkerA) {
+        busMarkerA = new kakao.maps.CustomOverlay({ position: pos, content: createBusOverlayContent('A'), zIndex: 10, yAnchor: 1 });
+        busMarkerA.setMap(kakaoMap);
+      } else busMarkerA.setPosition(pos);
     } else {
-      if (!busMarkerB) busMarkerB = L.marker([lat, lng], { icon: createBusIcon('B'), zIndexOffset: 999 }).addTo(map);
-      else busMarkerB.setLatLng([lat, lng]);
+      if (!busMarkerB) {
+        busMarkerB = new kakao.maps.CustomOverlay({ position: pos, content: createBusOverlayContent('B'), zIndex: 9, yAnchor: 1 });
+        busMarkerB.setMap(kakaoMap);
+      } else busMarkerB.setPosition(pos);
     }
   });
   if (!positions.find(p => p.busType === 'A') && busMarkerA) {
-    map.removeLayer(busMarkerA); busMarkerA = null;
+    busMarkerA.setMap(null); busMarkerA = null;
   }
   if (!positions.find(p => p.busType === 'B') && busMarkerB) {
-    map.removeLayer(busMarkerB); busMarkerB = null;
+    busMarkerB.setMap(null); busMarkerB = null;
   }
   const primaryPos = positions[0];
   if (primaryPos) {
@@ -1617,7 +1641,7 @@ function updateBusPosition() {
 }
 function openStopModal(stop, idx) {
   selectStopSchedule(idx, true);
-  if (stop && typeof map !== 'undefined') map.panTo([stop.lat, stop.lng]);
+  if (stop && typeof map !== 'undefined') kakaoMap.panTo(new kakao.maps.LatLng(stop.lat, stop.lng));
 }
 function closeModal() {
   document.getElementById('stopModal').style.display = 'none';
@@ -1632,8 +1656,8 @@ function selectRoute(num, el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   setTheme(currentRoute);
-  if (busMarkerA) { map.removeLayer(busMarkerA); busMarkerA = null; }
-  if (busMarkerB) { map.removeLayer(busMarkerB); busMarkerB = null; }
+  if (busMarkerA) { busMarkerA.setMap(null); busMarkerA = null; }
+  if (busMarkerB) { busMarkerB.setMap(null); busMarkerB = null; }
   updateBusPosition();
 }
 function updateClock() {
