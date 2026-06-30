@@ -1109,18 +1109,7 @@ header{display:none;}
 </head>
 <body>
 
-<div class="notice-overlay" id="noticeOverlay">
-  <div class="notice-box">
-    <div class="notice-icon">🚌</div>
-    <div class="notice-title"><span>복지카 지도</span> 업데이트중</div>
-    <div class="notice-desc" style="margin-top:10px;">담당자에게 문의주세요</div>
-    <div class="notice-bar"><div class="notice-bar-fill"></div></div>
-    <button class="notice-close" onclick="closeNotice()">닫기</button>
-  </div>
-</div>
-<button class="notice-toggle-btn" id="noticeToggleBtn" style="display:none;" onclick="openNotice()">
-  🚌 공지 보기
-</button>
+
 <header>
   <div class="header-logo">🚌</div>
   <div class="header-title">
@@ -1282,10 +1271,18 @@ function createStopOverlayHTML(isCurrent, stop, isStart) {
   const label   = formatLabel(stop.name);
   const dotCls  = isCurrent ? 'current' : '';
   const textCls = isCurrent ? 'current' : '';
+  const nowSecForSort = getNowSec();
+  // 현재 시각 이후(다가오는 시간)가 맨 앞, 이미 지난 시간은 맨 뒤로
   const times = getStopTimes(stop).map(t => {
     const [h, m] = t.split(':').map(Number);
     return { label: t, sec: h*3600 + m*60 };
-  }).sort((a,b) => a.sec - b.sec);
+  }).sort((a,b) => {
+    const aFuture = a.sec >= nowSecForSort;
+    const bFuture = b.sec >= nowSecForSort;
+    if (aFuture && !bFuture) return -1;
+    if (!aFuture && bFuture) return 1;
+    return a.sec - b.sec;
+  });
   const rows = [];
   for (let i=0; i<times.length; i+=2) rows.push(times.slice(i, i+2));
   const timeRows = rows.map(row => `<div class="mp-row">${row.map(c => {
@@ -1323,6 +1320,7 @@ function renderStops(currentIdx, currentIdxB) {
     const content = document.createElement('div');
     content.innerHTML = createStopOverlayHTML(isActiveStop, stop, stop.tag === '기점');
     const el = content.firstElementChild;
+    const baseZ = isActiveStop ? 50 : 2;
     el.addEventListener('click', () => {
       selectStopSchedule(i, true);
       kakaoMap.panTo(new kakao.maps.LatLng(stop.lat, stop.lng));
@@ -1331,9 +1329,12 @@ function renderStops(currentIdx, currentIdxB) {
       position: pos,
       content: el,
       yAnchor: 0.15,
-      zIndex: isActiveStop ? 50 : 2,
+      zIndex: baseZ,
     });
     overlay.setMap(kakaoMap);
+    // 호버 시 팝업이 다른 정류장 마커에 가리지 않도록 zIndex를 최상위로 올림
+    el.addEventListener('mouseenter', () => { overlay.setZIndex(9999); });
+    el.addEventListener('mouseleave', () => { overlay.setZIndex(baseZ); });
     stopMarkers.push(overlay);
   });
 
@@ -1366,9 +1367,18 @@ kakao.maps.load(function() {
   kakaoMap = new kakao.maps.Map(document.getElementById('map'), {
     center: new kakao.maps.LatLng(37.5005, 126.948),
     level: 4,
+    draggable: true,
+    scrollwheel: true,
+    disableDoubleClick: false,
+    disableDoubleClickZoom: false,
   });
+  kakaoMap.setDraggable(true);
+  kakaoMap.setZoomable(true);
   const zoomControl = new kakao.maps.ZoomControl();
   kakaoMap.addControl(zoomControl, kakao.maps.ControlPosition.BOTTOMRIGHT);
+  // 컨테이너 크기 변경 대응 (드래그 안 되는 문제 방지)
+  setTimeout(() => { kakaoMap.relayout(); kakaoMap.setCenter(new kakao.maps.LatLng(37.5005, 126.948)); }, 200);
+  window.addEventListener('resize', () => { if (kakaoMap) kakaoMap.relayout(); });
   mapReady = true;
   if (pendingRender) {
     renderStops(pendingRender[0], pendingRender[1]);
@@ -2088,16 +2098,6 @@ setInterval(updateClock, 1000); // 시계는 1초마다
 })();
 
 
-
-// 공지 팝업 열기/닫기
-function closeNotice() {
-  document.getElementById('noticeOverlay').style.display = 'none';
-  document.getElementById('noticeToggleBtn').style.display = 'flex';
-}
-function openNotice() {
-  document.getElementById('noticeOverlay').style.display = 'flex';
-  document.getElementById('noticeToggleBtn').style.display = 'none';
-}
 </script>
 </body>
 </html>
